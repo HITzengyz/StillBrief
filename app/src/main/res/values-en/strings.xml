@@ -265,4 +265,11 @@
     <string name="duration_presets_label">Quick picks · minutes</string>
     <string name="duration_exact_title">Enter exact minutes</string>
     <string name="duration_dial_description">Focus duration. Adjust the dial or tap to enter exact minutes</string>
+    <string name="api_key_show">Show API key</string>
+    <string name="api_key_hide">Hide API key</string>
+    <string name="api_key_copy">Copy API key</string>
+    <string name="api_key_clear">Clear current API key</string>
+    <string name="api_key_clip_label">API key</string>
+    <string name="api_key_cleared">Draft cleared. Save to apply.</string>
+    <string name="api_key_copied">API key copied</string>
 </resources>

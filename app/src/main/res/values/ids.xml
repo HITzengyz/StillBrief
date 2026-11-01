@@ -7,4 +7,8 @@
     <item name="duration_confirm" type="id"/>
     <item name="duration_cancel" type="id"/>
     <item name="duration_exact_input" type="id"/>
+    <item name="api_key_input" type="id"/>
+    <item name="api_key_reveal" type="id"/>
+    <item name="api_key_copy" type="id"/>
+    <item name="api_key_clear" type="id"/>
 </resources>

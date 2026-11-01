@@ -27,6 +27,16 @@ class DurationDial(context: Context): View(context) {
     private val green=Color.rgb(35,121,111)
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
     private val arc=RectF()
+    private val scalePaint=Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign=Paint.Align.CENTER; typeface=Typeface.create("sans-serif",Typeface.NORMAL) }
+    private fun scaleTextSize()=sp(11f)
+    // A circle enclosing the largest label keeps every angle clear of the outer ticks.
+    private val scaleLabelExtent: Float get() {
+        scalePaint.textSize=scaleTextSize()
+        val metrics=scalePaint.fontMetrics
+        return hypot(scalePaint.measureText("180")/2f,(metrics.descent-metrics.ascent)/2f)
+    }
+    private val scaleLabelOffset: Float get()=dp(17f)+scaleLabelExtent+dp(5f)
+    private val outerMargin: Float get()=scaleLabelOffset+scaleLabelExtent+dp(5f)
     private var drag: DurationGeometry.Drag?=null
     private var centerTap=false
     private var downX=0f
@@ -34,7 +44,7 @@ class DurationDial(context: Context): View(context) {
     private val slop=ViewConfiguration.get(context).scaledTouchSlop
     private fun dp(value: Float)=value*resources.displayMetrics.density
     private fun sp(value: Float)=value*resources.displayMetrics.scaledDensity
-    private val radius: Float get()=(min(width,height)/2f-dp(25f)).coerceAtLeast(dp(20f))
+    private val radius: Float get()=(min(width,height)/2f-outerMargin).coerceAtLeast(dp(20f))
     init { isFocusable=true; isClickable=true; importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_YES }
     fun setMinutes(value: Int,haptic: Boolean=false) {
         val next=value.coerceIn(DurationGeometry.MIN,DurationGeometry.MAX)
@@ -62,6 +72,13 @@ class DurationDial(context: Context): View(context) {
             val inner=r+dp(11f); val outer=inner+dp(if(major) 6f else 3f)
             paint.color=if(value<=minutes) Color.rgb(107,153,137) else Color.rgb(204,219,209)
             canvas.drawLine(cx+cos(angle).toFloat()*inner,cy+sin(angle).toFloat()*inner,cx+cos(angle).toFloat()*outer,cy+sin(angle).toFloat()*outer,paint)
+        }
+        scalePaint.textSize=scaleTextSize(); scalePaint.color=Color.rgb(108,133,118)
+        val metrics=scalePaint.fontMetrics
+        for(value in listOf(30,60,90,120,150,180)) {
+            val labelAngle=Math.toRadians(DurationGeometry.angle(value).toDouble())
+            canvas.drawText(value.toString(),cx+cos(labelAngle).toFloat()*(r+scaleLabelOffset),
+                cy+sin(labelAngle).toFloat()*(r+scaleLabelOffset)-(metrics.ascent+metrics.descent)/2f,scalePaint)
         }
         val angle=Math.toRadians(DurationGeometry.angle(minutes).toDouble())
         val x=cx+cos(angle).toFloat()*r; val y=cy+sin(angle).toFloat()*r
@@ -96,7 +113,7 @@ class DurationDial(context: Context): View(context) {
             MotionEvent.ACTION_DOWN -> {
                 downX=event.x; downY=event.y
                 centerTap=distance<radius*0.62f
-                if(!centerTap && kotlin.math.abs(distance-radius)>dp(34f)) return false
+                if(!centerTap && (distance<radius-dp(34f) || distance>radius+outerMargin)) return false
                 if(!centerTap) {
                     parent?.requestDisallowInterceptTouchEvent(true)
                     drag=DurationGeometry.Drag(angle(event.x,event.y),minutes)

@@ -265,4 +265,11 @@
     <string name="duration_presets_label">常用时长（分钟）</string>
     <string name="duration_exact_title">精确设置分钟数</string>
     <string name="duration_dial_description">专注时长，可调整圆环或点按输入精确分钟数</string>
+    <string name="api_key_show">显示 API Key</string>
+    <string name="api_key_hide">隐藏 API Key</string>
+    <string name="api_key_copy">复制 API Key</string>
+    <string name="api_key_clear">清空当前 API Key</string>
+    <string name="api_key_clip_label">API Key</string>
+    <string name="api_key_cleared">已清空当前草稿，保存后生效</string>
+    <string name="api_key_copied">已复制 API Key</string>
 </resources>

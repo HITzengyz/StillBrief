@@ -59,6 +59,7 @@ class MainActivity : Activity() {
     private var noticeDialog: AlertDialog?=null
     private var durationSheet: DurationPicker?=null
     private var localStatusView: TextView?=null
+    private var apiKeyField: ApiKeyField?=null
     private var savedForm: SettingsDraft?=null
     private var captureForm: (() -> SettingsDraft)?=null
     private fun tr(id: Int,vararg args: Any): String = getString(id,*args)
@@ -92,7 +93,7 @@ class MainActivity : Activity() {
         if(page==2) refreshLocalStatus()
         handler.removeCallbacks(tick); handler.post(tick)
     }
-    override fun onPause() { resumed=false; handler.removeCallbacks(tick); pageTransition.finish(); super.onPause() }
+    override fun onPause() { apiKeyField?.conceal(); resumed=false; handler.removeCallbacks(tick); pageTransition.finish(); super.onPause() }
     override fun onDestroy() { handler.removeCallbacks(tick); pageTransition.clear(); clearPickers(); dismissDialogs(); captureForm=null; super.onDestroy() }
     private fun label(text: String,size: Float=15f,bold: Boolean=false,parent: LinearLayout=content): TextView = TextView(this).also {
         it.text=text; it.textSize=size; it.setTextColor(ink); it.setPadding(0,dp(6),0,dp(6)); if(bold) it.setTypeface(null,Typeface.BOLD); parent.addView(it)
@@ -131,7 +132,7 @@ class MainActivity : Activity() {
     }
     private fun show(which: Int) {
         val previous=page
-        rememberScroll(); clearPickers(); uiGeneration++
+        rememberScroll(); apiKeyField?.conceal(); apiKeyField=null; clearPickers(); uiGeneration++
         if(page==2) savedForm=captureForm?.invoke() ?: savedForm
         captureForm=null; localStatusView=null
         page=which; clock=null; status=null; pending=null; startButton=null; pauseButton=null; restButton=null
@@ -317,6 +318,10 @@ class MainActivity : Activity() {
         val picker=MintSpinner(this,providers.map { it.title },providers.indexOf(selected),tr(R.string.provider_label))
         settingsPickers.add(picker); content.addView(picker,LinearLayout.LayoutParams(-1,-2))
         val providerHint=label(tr(R.string.provider_active_hint,settings.provider.title),12f)
+        val apiLabel=label(tr(R.string.api_key_label,selected.title),14f,true)
+        val keyField=ApiKeyField(this,initial.key); apiKeyField=keyField
+        val api=keyField.editText
+        content.addView(keyField,LinearLayout.LayoutParams(-1,-2))
         label(tr(R.string.delivery_label),14f,true)
         val targets=DeliveryTarget.entries.toList()
         val targetPicker=MintSpinner(this,targets.map { targetName(it) },targets.indexOf(selectedTarget),tr(R.string.delivery_label))
@@ -329,9 +334,6 @@ class MainActivity : Activity() {
                 .setPositiveButton(tr(R.string.cloud_consent_yes)) { _,_ -> enabled.tag=true }
                 .setNegativeButton(tr(R.string.cancel)) { _,_ -> enabled.isChecked=false }.setOnCancelListener { enabled.isChecked=false }.show()
         }
-        val apiLabel=label(tr(R.string.api_key_label,selected.title),14f,true)
-        val api=EditText(this).apply { setText(initial.key); textSize=14f; inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD; setSingleLine(true); maskSecret() }
-        content.addView(api,LinearLayout.LayoutParams(-1,-2))
         val remoteArea=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; visibility=if(selectedTarget==DeliveryTarget.FEISHU) View.VISIBLE else View.GONE }
         content.addView(remoteArea)
         val hook=field(tr(R.string.webhook_label),if(remoteLoaded) retainedForm?.webhook ?: secret { settings.webhook } else "",true,parent=remoteArea)
@@ -387,7 +389,7 @@ class MainActivity : Activity() {
                 drafts[selected]=AiConfig(selected,api.text.toString(),endpoint.text.toString(),model.text.toString(),prompt.text.toString())
                 selected=next
                 val draft=drafts.getOrPut(next) { load(next) }
-                apiLabel.text=tr(R.string.api_key_label,next.title); api.setText(draft.key); endpoint.setText(draft.endpoint); model.setText(draft.model)
+                keyField.conceal(); apiLabel.text=tr(R.string.api_key_label,next.title); api.setText(draft.key); endpoint.setText(draft.endpoint); model.setText(draft.model)
                 providerHint.text=tr(R.string.provider_form_hint,next.title,settings.provider.title)
                 if(keyError) keyNotice.text=tr(R.string.provider_key_unreadable)
             }

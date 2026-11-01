@@ -8,7 +8,7 @@ Collect phone notifications while you focus, then get a useful AI summary on you
 
 1. Open the latest successful **Android checks** run in [Actions](https://github.com/HITzengyz/StillBrief/actions), download **StillBrief-debug**, unzip it, and install the APK. Open Settings → Background operation and grant notification access.
 2. Choose **English** under **语言 / Language** at the top of Settings. New summaries use the selected language; original notifications and existing summaries stay unchanged.
-3. Select **OpenAI, Anthropic, or DeepSeek**, enter its API key, and save. Each provider has its own key, model, and endpoint.
+3. Select **OpenAI, Anthropic, or DeepSeek**, enter its API key, and save. Each provider has its own key, model, and endpoint. Use the eye, copy, and clear buttons beside the key; save after clearing.
 4. Choose a reminder destination: **On-device notification** needs no Webhook; open **Local notifications and Do Not Disturb**, grant permission, and send a test. **Feishu bot** needs the group bot’s Webhook. Enable **AI analysis and reminders** and save.
 5. Tap the timer and drag the duration dial (tap its number for exact input), then confirm and start focusing, or analyze now. Notifications worth checking are combined into one reminder.
 6. Tap **Stop collecting…** on a notification to exclude the same body, a channel, or an app. Manage rules in **Notification filters**.
