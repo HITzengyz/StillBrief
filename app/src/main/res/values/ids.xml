@@ -2,4 +2,9 @@
     <item name="page_host" type="id"/>
     <item name="page_header" type="id"/>
     <item name="page_navigation" type="id"/>
+    <item name="duration_dial" type="id"/>
+    <item name="duration_presets" type="id"/>
+    <item name="duration_confirm" type="id"/>
+    <item name="duration_cancel" type="id"/>
+    <item name="duration_exact_input" type="id"/>
 </resources>

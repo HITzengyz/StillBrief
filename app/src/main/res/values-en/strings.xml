@@ -28,10 +28,7 @@
     <string name="duration_remaining_title">Set remaining time</string>
     <string name="duration_default_title">Set next default duration</string>
     <string name="minutes_value">%1$d min</string>
-    <string name="duration_custom">Custom: 1–180 minutes</string>
     <string name="duration_hint">1–180 minutes</string>
-    <string name="duration_remaining_input">Remaining minutes</string>
-    <string name="duration_default_input">Default minutes for next timer</string>
     <string name="cancel">Cancel</string>
     <string name="confirm">OK</string>
     <string name="close">Close</string>
@@ -262,4 +259,10 @@
     <string name="error_local_notifications_disabled">Enable local notifications and the summary channel, then retry manually.</string>
     <string name="error_local_send_failed">The local reminder could not be posted. Check notification settings and retry.</string>
     <string name="error_local_interrupted">Posting the local reminder was interrupted. Retry manually; the same batch updates its original notification.</string>
+    <string name="duration_minutes_unit">min</string>
+    <string name="duration_exact_hint">Tap for exact value</string>
+    <string name="duration_drag_hint">Drag the dial in 5-minute steps</string>
+    <string name="duration_presets_label">Quick picks · minutes</string>
+    <string name="duration_exact_title">Enter exact minutes</string>
+    <string name="duration_dial_description">Focus duration. Adjust the dial or tap to enter exact minutes</string>
 </resources>

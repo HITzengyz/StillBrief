@@ -44,6 +44,7 @@ class MainActivity : Activity() {
     private var pauseButton: Button?=null
     private var restButton: Button?=null
     private var noticeDialog: AlertDialog?=null
+    private var durationSheet: DurationPicker?=null
     private var localStatusView: TextView?=null
     private var savedForm: SettingsDraft?=null
     private var captureForm: (() -> SettingsDraft)?=null
@@ -76,7 +77,7 @@ class MainActivity : Activity() {
         handler.post(tick)
     }
     override fun onPause() { resumed=false; handler.removeCallbacks(tick); pageTransition.finish(); super.onPause() }
-    override fun onDestroy() { handler.removeCallbacks(tick); pageTransition.clear(); noticeDialog?.dismiss(); captureForm=null; super.onDestroy() }
+    override fun onDestroy() { handler.removeCallbacks(tick); pageTransition.clear(); durationSheet?.dismiss(); durationSheet=null; noticeDialog?.dismiss(); captureForm=null; super.onDestroy() }
     private fun label(text: String,size: Float=15f,bold: Boolean=false,parent: LinearLayout=content): TextView = TextView(this).also {
         it.text=text; it.textSize=size; it.setTextColor(ink); it.setPadding(0,dp(6),0,dp(6)); if(bold) it.setTypeface(null,Typeface.BOLD); parent.addView(it)
     }
@@ -157,21 +158,13 @@ class MainActivity : Activity() {
         } else durationPicker(false)
     }
     private fun durationPicker(current: Boolean) {
-        val options=(listOf(15,25,35,45,60).map { tr(R.string.minutes_value,it) }+tr(R.string.duration_custom)).toTypedArray()
-        AlertDialog.Builder(this).setTitle(if(current) tr(R.string.duration_remaining_title) else tr(R.string.duration_default_title))
-            .setItems(options) { _,which ->
-                if(which<5) applyDuration(listOf(15,25,35,45,60)[which],current)
-                else {
-                    val input=EditText(this).apply { inputType=InputType.TYPE_CLASS_NUMBER; hint=tr(R.string.duration_hint); setText(settings.minutes.toString()); setSelectAllOnFocus(true) }
-                    val dialog=AlertDialog.Builder(this).setTitle(if(current) tr(R.string.duration_remaining_input) else tr(R.string.duration_default_input)).setView(input)
-                        .setNegativeButton(tr(R.string.cancel),null).setPositiveButton(tr(R.string.confirm),null).create()
-                    dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                        val value=input.text.toString().toIntOrNull()
-                        if(value==null || value !in 1..180) input.error=tr(R.string.duration_invalid)
-                        else { applyDuration(value,current); dialog.dismiss() }
-                    } }; dialog.show()
-                }
-            }.show()
+        val initial=if(current) {
+            val timer=Store(this).use { it.timer() }
+            DurationGeometry.remainingMinutes(if(timer.state=="RUNNING") timer.end-System.currentTimeMillis() else timer.remaining)
+        } else settings.minutes
+        durationSheet?.dismiss()
+        durationSheet=DurationPicker(this,initial,tr(if(current) R.string.duration_remaining_title else R.string.duration_default_title)) { minutes -> applyDuration(minutes,current) }
+        durationSheet?.show()
     }
     private fun applyDuration(minutes: Int,current: Boolean) {
         if(current) toast(if(TimerEngine.adjustRemaining(this,minutes)) tr(R.string.duration_changed) else tr(R.string.duration_finished))

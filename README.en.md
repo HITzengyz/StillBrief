@@ -10,7 +10,7 @@ Collect phone notifications while you focus, then get a useful AI summary on you
 2. Choose **English** under **语言 / Language** at the top of Settings. New summaries use the selected language; original notifications and existing summaries stay unchanged.
 3. Select **OpenAI, Anthropic, or DeepSeek**, enter its API key, and save. Each provider has its own key, model, and endpoint.
 4. Choose a reminder destination: **On-device notification** needs no Webhook; open **Local notifications and Do Not Disturb**, grant permission, and send a test. **Feishu bot** needs the group bot’s Webhook. Enable **AI analysis and reminders** and save.
-5. Tap the timer to choose a duration and start focusing, or analyze now. Notifications worth checking are combined into one reminder.
+5. Tap the timer and drag the duration dial (tap its number for exact input), then confirm and start focusing, or analyze now. Notifications worth checking are combined into one reminder.
 6. Tap **Stop collecting…** on a notification to exclude the same body, a channel, or an app. Manage rules in **Notification filters**.
 7. In **Background operation**, allow auto-start and remove battery optimization for this app. Lock the recent-task card if needed. On HONOR, **Don’t allow** under Battery optimization means not allowing the system to optimize this app.
 

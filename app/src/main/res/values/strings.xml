@@ -28,10 +28,7 @@
     <string name="duration_remaining_title">设置本轮剩余时间</string>
     <string name="duration_default_title">设置下次默认时长</string>
     <string name="minutes_value">%1$d分钟</string>
-    <string name="duration_custom">自定义 · 1—180分钟</string>
     <string name="duration_hint">1—180分钟</string>
-    <string name="duration_remaining_input">本轮剩余分钟数</string>
-    <string name="duration_default_input">下次默认分钟数</string>
     <string name="cancel">取消</string>
     <string name="confirm">确定</string>
     <string name="close">关闭</string>
@@ -262,4 +259,10 @@
     <string name="error_local_notifications_disabled">请先开启本机通知权限及消息摘要类别，再手动重试。</string>
     <string name="error_local_send_failed">本机提醒未能发送，请检查通知设置后重试。</string>
     <string name="error_local_interrupted">本机提醒发送被中断，请手动重试；同一批次会更新原通知。</string>
+    <string name="duration_minutes_unit">分钟</string>
+    <string name="duration_exact_hint">点数字精确设置</string>
+    <string name="duration_drag_hint">拖动圆环，每5分钟一个卡点</string>
+    <string name="duration_presets_label">常用时长（分钟）</string>
+    <string name="duration_exact_title">精确设置分钟数</string>
+    <string name="duration_dial_description">专注时长，可调整圆环或点按输入精确分钟数</string>
 </resources>
