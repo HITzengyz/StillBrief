@@ -8,9 +8,10 @@ import java.security.MessageDigest
 /** Pure policy: metadata determines hard keeps; unknown packages never imply a private chat. */
 data class Notice(val id: Long = 0, val key: String, val pkg: String, val app: String,
                   val title: String, val body: String, val at: Long,
-                  val kind: String = "unknown", val hidden: Boolean = false, val summary: Boolean = false, val truncated: Boolean = false, val sourceTime: Long = 0) {
+                  val kind: String = "unknown", val hidden: Boolean = false, val summary: Boolean = false, val truncated: Boolean = false, val sourceTime: Long = 0, val ongoing: Boolean = false, val channelId: String = "") {
     val hardKeep get() = truncated || kind == "private" || kind == "missed_call" || (hidden && kind in setOf("message", "group", "mail", "sms", "call"))
-    fun fingerprint() = sha("$key\u0000$title\u0000$body\u0000$kind\u0000$hidden\u0000$summary\u0000$sourceTime")
+    val isStatus get() = ongoing && kind !in setOf("private", "group", "message", "mail", "sms", "call", "missed_call")
+    fun fingerprint() = sha("$key\u0000$title\u0000$body\u0000$kind\u0000$hidden\u0000$summary\u0000${if(isStatus) 0 else sourceTime}\u0000$ongoing\u0000$channelId")
     fun json() = JSONObject().put("id", id).put("app", app).put("package", pkg).put("title", title)
         .put("body", body).put("time", at).put("kind", kind).put("hidden", hidden).put("summary", summary).put("truncated",truncated)
 }

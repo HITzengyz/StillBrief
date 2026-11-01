@@ -35,10 +35,11 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
         val s=Settings(applicationContext)
         Store(applicationContext).use { db ->
             var b=db.get(id)?:return Result.success()
-            if(b.state=="QUEUED" && db.transition(id,"QUEUED","ANALYZING")) {
+            val claimed=if(b.state=="QUEUED") db.claimAnalysis(id) else null
+            if(claimed!=null) {
                 try {
-                    require(s.enabled) { "请先在设置中确认并开启云端分析与飞书提醒" }
-                    val selected=Network.analyze(s,Policy.merge(db.notices(id)))
+                    if(claimed.isNotEmpty()) require(s.enabled) { "请先在设置中确认并开启云端分析与飞书提醒" }
+                    val selected=if(claimed.isEmpty()) Selection(emptySet(),"") else Network.analyze(s,Policy.merge(claimed))
                     db.transition(id,"ANALYZING",if(selected.ids.isEmpty()) "EMPTY" else "READY",selected.message,ids=selected.ids.joinToString(","))
                 } catch(e: Exception) {
                     // No exception body or server response is logged or persisted (it may contain content/secrets).
@@ -67,14 +68,15 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
     }
 }
 object TimerEngine {
-    private fun pending(c: Context,token: Long=0)=PendingIntent.getBroadcast(c,1,Intent(c,TimerReceiver::class.java).putExtra("token",token),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    private fun pending(c: Context,token: Long=0)=PendingIntent.getBroadcast(c,1,Intent(c,TimerReceiver::class.java).setData(android.net.Uri.parse("focusinbox://timer/$token")).putExtra("token",token),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     fun exact(c: Context): Boolean = android.os.Build.VERSION.SDK_INT<31 || c.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
     @Synchronized fun start(c: Context) {
         val t=Store(c).use { it.timer() }
         if(t.state=="RUNNING") return
         val remaining=if(t.state=="PAUSED") t.remaining else Settings(c).minutes*60_000L
-        val token=System.currentTimeMillis()
-        Store(c).use { it.setTimer("RUNNING",token+remaining,remaining,token) }
+        val now=System.currentTimeMillis()
+        val token=maxOf(now,t.token+1)
+        Store(c).use { it.setTimer("RUNNING",now+remaining,remaining,token) }
         restore(c)
     }
     @Synchronized fun pause(c: Context) {
@@ -86,7 +88,13 @@ object TimerEngine {
         Store(c).use { db -> db.setTimer("IDLE",0,0,System.currentTimeMillis()) }
         BatchEngine.trigger(c)
     }
-    private fun cancel(c: Context) { c.getSystemService(AlarmManager::class.java).cancel(pending(c)); WorkManager.getInstance(c).cancelUniqueWork("focus-timer") }
+    private fun cancel(c: Context) { val token=Store(c).use { it.timer().token }; c.getSystemService(AlarmManager::class.java).cancel(pending(c,token)); WorkManager.getInstance(c).cancelUniqueWork("focus-timer") }
+    @Synchronized fun adjustRemaining(c: Context,minutes: Int): Boolean {
+        cancel(c)
+        val changed=Store(c).use { it.adjustRemaining(minutes) } ?: return false
+        if(changed.state=="RUNNING") restore(c)
+        return true
+    }
     @Synchronized fun restore(c: Context) {
         val t=Store(c).use { it.timer() }
         if(t.state!="RUNNING") return

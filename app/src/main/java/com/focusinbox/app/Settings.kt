@@ -10,8 +10,8 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-class Settings(context: Context) {
-    private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+class Settings(context: Context, prefsName: String = "settings") {
+    private val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
     var enabled: Boolean get() = prefs.getBoolean("enabled", false); set(v) { prefs.edit().putBoolean("enabled", v).commit() }
     var minutes: Int get() = prefs.getInt("minutes", 25); set(v) { prefs.edit().putInt("minutes", v).commit() }
     var model: String get() = prefs.getString("model", "deepseek-flash")!!; set(v) { prefs.edit().putString("model", v).commit() }
@@ -21,6 +21,12 @@ class Settings(context: Context) {
     var apiKey: String get() = secret("key"); set(v) { putSecret("key", v) }
     var webhook: String get() = secret("hook"); set(v) { putSecret("hook", v) }
     var signingKey: String get() = secret("sign"); set(v) { putSecret("sign", v) }
+    var hideRecents: Boolean get() = prefs.getBoolean("hideRecents",false); set(v) { prefs.edit().putBoolean("hideRecents",v).commit() }
+    /** Basic saves intentionally do not write any advanced configuration. */
+    fun saveBasic(key: String,hook: String,on: Boolean) { apiKey=key; webhook=hook; enabled=on }
+    fun saveAdvanced(endpointValue: String,modelValue: String,signValue: String,promptValue: String) {
+        signingKey=signValue; endpoint=endpointValue; model=modelValue; prompt=promptValue
+    }
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey("focus_secrets", null) as? SecretKey)?.let { return it }

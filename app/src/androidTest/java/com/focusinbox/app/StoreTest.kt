@@ -74,4 +74,114 @@ class StoreTest {
         assertEquals("好的",db.notices(secondId).single().body)
     }
 
+    @Test fun ongoingStatusIgnoresTimeButCommunicationDoesNot() {
+        val status=n("正在共享WLAN网络").copy(ongoing=true,sourceTime=100,channelId="network")
+        assertTrue(db.insert(status)); assertFalse(db.insert(status.copy(sourceTime=200,at=500)))
+        assertEquals(1L,db.pendingCount())
+        val chat=n("好的").copy(key="chat",kind="private",ongoing=true,sourceTime=100)
+        assertTrue(db.insert(chat)); assertTrue(db.insert(chat.copy(sourceTime=200)))
+        val call=n("来电").copy(key="call",kind="call",ongoing=true,sourceTime=100)
+        assertTrue(db.insert(call)); assertTrue(db.insert(call.copy(sourceTime=200)))
+        val mail=n("邮件").copy(key="mail",kind="mail",ongoing=true,sourceTime=100)
+        assertTrue(db.insert(mail)); assertTrue(db.insert(mail.copy(sourceTime=200)))
+    }
+    @Test fun exactBodyRuleIgnoresTitleButNotOtherAppsOrBodies() {
+        val wifi=n("正在共享WLAN网络").copy(title="2台设备",sourceTime=100)
+        val real=n("需要回复").copy(key="real",sourceTime=100)
+        assertTrue(db.insert(wifi)); assertTrue(db.insert(real))
+        val id=db.createBatch()!!
+        assertTrue(db.addFilter("body",wifi.pkg,wifi.app,wifi.body))
+        assertEquals(listOf("需要回复"),db.recent().map { it.body })
+        assertEquals(listOf("需要回复"),db.visibleNotices(id).map { it.body })
+        assertFalse(db.insert(wifi.copy(title="3台设备",sourceTime=200)))
+        assertTrue(db.insert(wifi.copy(key="other",pkg="another.app",sourceTime=200)))
+        assertEquals(listOf("需要回复"),db.claimAnalysis(id)!!.map { it.body })
+        assertEquals(2,db.notices(id).size) // immutable raw audit stays complete
+    }
+    @Test fun removingRuleRestoresFutureCollectionAndUnassignedCache() {
+        val wifi=n("状态").copy(ongoing=true,sourceTime=100)
+        db.insert(wifi); db.addFilter("body",wifi.pkg,wifi.app,wifi.body)
+        assertEquals(0L,db.pendingCount()); assertNull(db.createBatch()); assertTrue(db.recent().isEmpty())
+        db.removeFilter(db.filters().single().id)
+        assertEquals(1L,db.pendingCount()); assertEquals(1,db.recent().size)
+        assertTrue(db.insert(wifi.copy(sourceTime=200))) // cancellation clears status fingerprint
+    }
+    @Test fun channelRuleIsScopedToPackageAndChannel() {
+        db.addFilter("channel","p","应用","status")
+        assertFalse(db.insert(n("A").copy(channelId="status")))
+        assertTrue(db.insert(n("A").copy(channelId="messages")))
+        assertTrue(db.insert(n("A").copy(pkg="other",channelId="status")))
+    }
+    @Test fun rulesAddedAfterClaimDoNotMutateClaimedSnapshot() {
+        val a=n("原消息"); db.insert(a); val id=db.createBatch()!!
+        val snapshot=db.claimAnalysis(id)!!
+        db.addFilter("app",a.pkg,a.app)
+        assertEquals(listOf("原消息"),snapshot.map { it.body })
+        assertEquals("ANALYZING",db.get(id)!!.state)
+        assertFalse(db.insert(a.copy(sourceTime=200)))
+        assertEquals(1,db.notices(id).size)
+    }
+    @Test fun remainingAdjustmentKeepsRunningOrPausedAndRejectsOldEvent() {
+        val now=System.currentTimeMillis()
+        db.setTimer("RUNNING",now-1,0,10)
+        val running=db.adjustRemaining(15,now)!!
+        assertEquals("RUNNING",running.state); assertEquals(now+900000,running.end)
+        assertTrue(running.token>10); assertFalse(db.finishTimer(10)); assertFalse(db.finishTimer(running.token))
+        db.setTimer("PAUSED",0,10000,running.token)
+        val paused=db.adjustRemaining(35,now)!!
+        assertEquals("PAUSED",paused.state); assertEquals(0L,paused.end); assertEquals(2100000L,paused.remaining)
+        assertTrue(paused.token>running.token); assertFalse(db.finishTimer(running.token))
+        db.setTimer("IDLE",0,0,paused.token)
+        assertNull(db.adjustRemaining(25,now)); assertEquals("IDLE",db.timer().state)
+    }
+    @Test fun legacyAppExclusionsImportOnlyOnce() {
+        val name="inbox-legacy-filters-test.db"
+        context.deleteDatabase(name)
+        try {
+            Store(context,name,setOf("blocked.app")).use { migrated ->
+                assertEquals("blocked.app",migrated.filters().single().pkg)
+                assertFalse(migrated.insert(n("通知").copy(pkg="blocked.app")))
+                migrated.removeFilter(migrated.filters().single().id)
+            }
+            Store(context,name,setOf("blocked.app")).use { reopened ->
+                assertTrue(reopened.filters().isEmpty())
+                assertTrue(reopened.insert(n("通知").copy(pkg="blocked.app")))
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+    @Test fun v1MigrationPreservesNoticesBatchesTimerAndAddsDefaults() {
+        val name="inbox-v1-migration-test.db"
+        context.deleteDatabase(name)
+        try {
+            android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(name),null).use { old ->
+                old.execSQL("CREATE TABLE notices(id INTEGER PRIMARY KEY AUTOINCREMENT,nkey TEXT NOT NULL,pkg TEXT NOT NULL,app TEXT NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,kind TEXT NOT NULL,hidden INTEGER NOT NULL,summary INTEGER NOT NULL,sourceTime INTEGER NOT NULL DEFAULT 0,fingerprint TEXT NOT NULL,batch INTEGER)")
+                old.execSQL("CREATE INDEX notices_batch ON notices(batch)")
+                old.execSQL("CREATE TABLE latest(nkey TEXT PRIMARY KEY,fingerprint TEXT NOT NULL)")
+                old.execSQL("CREATE TABLE batches(id INTEGER PRIMARY KEY AUTOINCREMENT,state TEXT NOT NULL,created INTEGER NOT NULL,message TEXT NOT NULL DEFAULT '',error TEXT NOT NULL DEFAULT '',ids TEXT NOT NULL DEFAULT '')")
+                old.execSQL("CREATE TABLE timer(id INTEGER PRIMARY KEY CHECK(id=1),state TEXT NOT NULL,endAt INTEGER NOT NULL,remaining INTEGER NOT NULL,token INTEGER NOT NULL)")
+                old.execSQL("INSERT INTO notices VALUES(1,'k','p','应用','旧标题','旧私聊',1,'private',0,0,0,'old',1)")
+                old.execSQL("INSERT INTO batches VALUES(1,'DONE',1,'旧摘要','','1')")
+                old.execSQL("INSERT INTO timer VALUES(1,'PAUSED',0,60000,123)")
+                old.version=1
+            }
+            Store(context,name,emptySet()).use { upgraded ->
+                assertEquals(2,upgraded.readableDatabase.version)
+                val notice=upgraded.notices(1).single()
+                assertEquals("旧私聊",notice.body); assertEquals(0L,notice.sourceTime); assertFalse(notice.ongoing); assertEquals("",notice.channelId)
+                assertEquals("旧摘要",upgraded.get(1)!!.message); assertEquals("DONE",upgraded.get(1)!!.state)
+                assertEquals("PAUSED",upgraded.timer().state); assertEquals(60000L,upgraded.timer().remaining); assertEquals(123L,upgraded.timer().token)
+                assertTrue(upgraded.insert(n("升级后通知").copy(channelId="new",ongoing=true)))
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+
+    @Test fun failedAnalysisUsesNewRulesOnManualRetry() {
+        val a=n("不再需要的消息"); db.insert(a); val id=db.createBatch()!!
+        assertEquals(1,db.claimAnalysis(id)!!.size)
+        db.transition(id,"ANALYZING","FAILED")
+        db.addFilter("body",a.pkg,a.app,a.body)
+        assertTrue(db.retry(id)); assertTrue(db.claimAnalysis(id)!!.isEmpty())
+        assertEquals(1,db.notices(id).size)
+    }
+
 }
