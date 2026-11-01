@@ -8,7 +8,6 @@ import android.content.ComponentName
 import android.content.ActivityNotFoundException
 import android.net.Uri
 import android.os.Build
-import android.os.PowerManager
 import android.content.Intent
 import android.content.Context
 import android.graphics.Color
@@ -334,6 +333,7 @@ class MainActivity : Activity() {
         }
         button(tr(R.string.delete_keys)) { AlertDialog.Builder(this).setTitle(tr(R.string.delete_keys_title)).setMessage(tr(R.string.delete_keys_help))
             .setNegativeButton(tr(R.string.cancel),null).setPositiveButton(tr(R.string.delete)) { _,_ -> settings.clearSecrets(); captureForm=null; savedForm=null; show(2) }.show() }
+        recentTaskPreference()
     }
     private fun filtersPage() {
         label(tr(R.string.filters_title),23f,true)
@@ -360,27 +360,48 @@ class MainActivity : Activity() {
     private fun backgroundPage() {
         label(tr(R.string.background_title),23f,true)
         label(tr(R.string.background_intro),13f)
-        val pm=getSystemService(PowerManager::class.java)
-        val am=getSystemService(ActivityManager::class.java)
+        val state=BackgroundGuide.read(this)
+        val autostart=card(); label(tr(R.string.autostart_title),17f,true,autostart)
+        label(tr(BackgroundGuide.autoLaunchGuide(),tr(R.string.app_name)),14f,parent=autostart)
+        label(tr(R.string.autostart_manual),12f,parent=autostart)
+        button(tr(R.string.app_details),autostart) { openAppDetails() }
+        button(tr(R.string.system_settings),autostart) { openSystem(Intent(AndroidSettings.ACTION_SETTINGS)) }
+
+        val battery=card(); label(tr(R.string.battery_step_title),17f,true,battery)
+        label(tr(if(state.batteryExempt) R.string.battery_optimization_off else R.string.battery_optimization_on),15f,true,battery)
+        label(tr(R.string.battery_step_help),14f,parent=battery)
+        if(BackgroundGuide.isHonorOrHuawei()) label(tr(R.string.battery_honor_help),13f,parent=battery)
+        button(tr(if(state.batteryExempt) R.string.battery_settings else R.string.battery_request),battery,primary=!state.batteryExempt) {
+            val current=BackgroundGuide.read(this)
+            if(!BackgroundGuide.openBatteryScreens(packageName,current.batteryExempt) { startActivity(it) }) toast(tr(R.string.battery_entry_missing))
+        }
+        if(state.powerSaveMode) {
+            label(tr(R.string.power_saver_active),15f,true,battery)
+            label(tr(R.string.power_saver_help),13f,parent=battery)
+            button(tr(R.string.power_saver_settings),battery) { openSystem(Intent(AndroidSettings.ACTION_BATTERY_SAVER_SETTINGS)) }
+        }
+
+        val taskLock=card(); label(tr(R.string.task_lock_title),17f,true,taskLock)
+        label(tr(R.string.task_lock_help,tr(R.string.app_name)),14f,parent=taskLock)
+        if(settings.hideRecents) label(tr(R.string.task_lock_hidden_help),13f,true,taskLock)
+
         val component=ComponentName(this,InboxListener::class.java)
         val authorized=if(Build.VERSION.SDK_INT>=27) getSystemService(NotificationManager::class.java).isNotificationListenerAccessGranted(component)
             else AndroidSettings.Secure.getString(contentResolver,"enabled_notification_listeners").orEmpty().split(":").contains(component.flattenToString())
-        val c=card(); label(tr(R.string.current_status),17f,true,c)
-        label(tr(R.string.background_states,
+        val permissions=card(); label(tr(R.string.background_permissions_title),17f,true,permissions)
+        label(tr(R.string.background_permissions_states,
             tr(if(authorized) R.string.access_granted else R.string.access_missing),
             tr(if(InboxListener.connected) R.string.connection_active else R.string.connection_missing),
             tr(if(TimerEngine.exact(this)) R.string.alarm_available else R.string.alarm_missing),
-            tr(if(pm.isIgnoringBatteryOptimizations(packageName)) R.string.battery_exempt else R.string.battery_not_exempt),
-            tr(if(Build.VERSION.SDK_INT<28) R.string.background_unsupported else if(am.isBackgroundRestricted) R.string.background_restricted else R.string.background_not_reported)
-        ),14f,parent=c)
-        button(tr(R.string.refresh_status),c) { show(4) }
-        button(tr(R.string.notification_access_settings),c) { openSystem(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
-        if(Build.VERSION.SDK_INT>=31) button(tr(R.string.alarm_settings),c) { openSystem(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,Uri.parse("package:$packageName"))) }
-        button(tr(R.string.battery_settings),c) { openSystem(Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
-        button(tr(R.string.app_details),c) { openSystem(Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:$packageName"))) }
-        val honor=card(); label(tr(R.string.honor_title),17f,true,honor)
-        label(tr(R.string.honor_instructions),14f,parent=honor)
-        button(tr(R.string.system_settings),honor) { openSystem(Intent(AndroidSettings.ACTION_SETTINGS)) }
+            tr(when(state.backgroundRestricted) { true -> R.string.background_restricted; false -> R.string.background_not_reported; null -> R.string.background_unsupported })
+        ),14f,parent=permissions)
+        button(tr(R.string.notification_access_settings),permissions) { openSystem(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+        if(Build.VERSION.SDK_INT>=31) button(tr(R.string.alarm_settings),permissions) { openSystem(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,Uri.parse("package:$packageName"))) }
+        button(tr(R.string.refresh_status),permissions) { show(4) }
+        button(tr(R.string.back_settings)) { show(2) }
+    }
+    private fun recentTaskPreference() {
+        val am=getSystemService(ActivityManager::class.java)
         val recents=card(); label(tr(R.string.recents_title),17f,true,recents)
         label(tr(R.string.recents_help),13f,parent=recents)
         val hidden=Switch(this).apply { text=tr(R.string.recents_hide); isChecked=settings.hideRecents }; recents.addView(hidden)
@@ -390,7 +411,6 @@ class MainActivity : Activity() {
                 .setNegativeButton(tr(R.string.cancel)) { _,_ -> hidden.isChecked=false }.setPositiveButton(tr(R.string.hide)) { _,_ -> apply(true) }.setOnCancelListener { hidden.isChecked=false }.show()
             else apply(false)
         }
-        button(tr(R.string.back_settings)) { show(2) }
     }
     private fun openSystem(intent: Intent) {
         try { startActivity(intent) }

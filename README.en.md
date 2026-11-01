@@ -12,7 +12,7 @@ Collect phone notifications while you focus, then get a useful AI summary in Fei
 4. Add a custom bot in your Feishu group’s settings and copy its Webhook URL into Settings. Enable cloud analysis and save.
 5. Tap the timer to choose a duration and start focusing, or analyze now. Notifications worth checking are combined into one Feishu reminder.
 6. Tap **Stop collecting…** on a notification to exclude the same body, a channel, or an app. Manage rules in **Notification filters**.
-7. Use **Background operation** to review permissions and follow your phone’s background-launch instructions.
+7. In **Background operation**, allow auto-start and remove battery optimization for this app. Lock the recent-task card if needed. On HONOR, **Don’t allow** under Battery optimization means not allowing the system to optimize this app.
 
 Advanced settings contain the selected provider’s model and full HTTPS endpoint, plus shared preferences and an optional Feishu signing secret. Saving advanced settings does not switch the active provider.
 
