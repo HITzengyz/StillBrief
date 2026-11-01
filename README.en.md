@@ -20,6 +20,16 @@ Say you lock in for a 35-minute session. During that time, you get a dozen casua
 
 *Illustrated scenario with sample messages. Labels are in Chinese.*
 
+**The same example in the app.** These are actual Android emulator screenshots, using demo notifications and fixed model responses.
+
+<p>
+  <img src="docs/images/runtime/collected-messages.png" width="240" alt="Original demo notifications">
+  <img src="docs/images/runtime/summary-result.png" width="240" alt="Meeting summary in the app">
+  <img src="docs/images/runtime/noise-only.png" width="240" alt="Noise-only round: no reminder sent">
+</p>
+
+Left to right: the original messages, the meeting summary, and a separate noise-only round marked “No reminder needed (not sent)”.
+
 ### Keep the phone out of reach
 
 Pair StillBrief with Android's Do Not Disturb so only its summaries can break through. Or better yet, leave your phone across the room and route summaries to **Feishu** on your desktop.
@@ -28,19 +38,36 @@ Pair StillBrief with Android's Do Not Disturb so only its summaries can break th
 
 *Choose on-device notifications or a Feishu bot to suit your workspace.*
 
+<p>
+  <img src="docs/images/runtime/local-summary.png" width="240" alt="Actual Android summary banner">
+  <img src="docs/images/runtime/reminder-options.png" width="240" alt="On-device notification and Feishu bot options">
+  <img src="docs/images/runtime/local-reminder-settings.png" width="240" alt="Local notification and DND settings">
+</p>
+
+The actual Android reminder banner, destination picker, and DND setup page. Choose where summaries should appear here.
+
+A mockup of the same summary arriving in desktop Feishu:
+
+<p><img src="docs/images/feishu-example.jpg" width="800" alt="Mock Feishu conversation with the sample meeting summary"></p>
+
 ### Match your workflow
 
 Run a **Single** timer when you just need to get through one paper or task, or put it on **Loop** for all-day deep work with automatic check-ins every 30 or 45 minutes.
 
-<p><img src="docs/images/focus.png" width="280" alt="Actual StillBrief interface showing Single and Loop modes"></p>
+<p>
+  <img src="docs/images/runtime/mode-single.png" width="280" alt="Single mode, 35 minutes">
+  <img src="docs/images/runtime/mode-loop.png" width="280" alt="Loop mode after entering the next round">
+</p>
 
-*Actual app screen: choose Single or Loop before starting.*
+*Left: a 35-minute Single session ready to start. Right: Loop has entered its next 35-minute round.*
 
 ### Bring your own key
 
 Plug in your own OpenAI, Anthropic, or DeepSeek API key. Requests go straight to the endpoint you configure; you choose the model and pay your provider for API usage.
 
-<p><img src="docs/images/ai-settings.png" width="280" alt="Actual StillBrief interface showing AI provider, API key and reminder destination"></p>
+<p>
+  <img src="docs/images/runtime/ai-providers.png" width="280" alt="Actual provider menu: DeepSeek, OpenAI, Anthropic">
+</p>
 
 *Actual app screen: choose a provider, then enter its API key.*
 

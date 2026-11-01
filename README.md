@@ -20,6 +20,16 @@
 
 *场景示意，图中消息为演示内容。*
 
+**同一个例子，在软件里长这样。** 以下为 Android 模拟器中的真实界面，通知和模型返回使用固定演示数据。
+
+<p>
+  <img src="docs/images/runtime/collected-messages.png" width="240" alt="真实界面：项目群闲聊、WLAN 状态和张三的会议消息">
+  <img src="docs/images/runtime/summary-result.png" width="240" alt="真实界面：25 条演示通知中保留会议摘要">
+  <img src="docs/images/runtime/noise-only.png" width="240" alt="真实界面：24 条无关演示通知，无需提醒且未发送">
+</p>
+
+从左到右：本轮原始通知、会议摘要、另一轮只有闲聊时的“无需提醒（未发送）”。
+
 ### 把手机彻底放远
 
 你可以配合系统的“免打扰”模式，只给息间留一个白名单；或者更彻底一点——把手机扔到够不着的地方，让它通过**飞书机器人**把摘要推到你正在工作的电脑上。看到电脑弹窗确实有事，再去拿手机。
@@ -28,19 +38,36 @@
 
 *选本机通知，或选飞书机器人，按你的工作习惯来。*
 
+<p>
+  <img src="docs/images/runtime/local-summary.png" width="240" alt="实际发出的 Android 系统横幅摘要">
+  <img src="docs/images/runtime/reminder-options.png" width="240" alt="实际下拉菜单：本机通知与飞书机器人">
+  <img src="docs/images/runtime/local-reminder-settings.png" width="240" alt="本机通知权限与免打扰设置入口">
+</p>
+
+实际弹出的系统摘要、本机／飞书选择菜单，以及免打扰设置入口。在这里决定摘要发到哪里。
+
+同一条摘要发到电脑飞书后，大致是这样的效果（模拟界面）：
+
+<p><img src="docs/images/feishu-example.jpg" width="800" alt="飞书模拟界面：息间机器人发送张三的会议确认摘要"></p>
+
 ### 单次冲刺，或是全天巡航
 
 只想静下心读完手头这篇论文，用**单次模式**；如果是整块的工作时段，开**循环模式**，让它每隔半小时或四十五分钟替你巡检一次消息。
 
-<p><img src="docs/images/focus.png" width="280" alt="息间实际界面：首页选择单次或循环模式"></p>
+<p>
+  <img src="docs/images/runtime/mode-single.png" width="280" alt="单次模式：35 分钟">
+  <img src="docs/images/runtime/mode-loop.png" width="280" alt="循环模式：到点后进入下一轮 35 分钟">
+</p>
 
-*应用实际界面：开始前选择单次或循环。*
+*左：单次模式，准备开始 35 分钟专注。右：循环模式，已经进入下一轮 35 分钟。*
 
 ### 自带 Key，丰俭由人
 
 直接接入你自己的 OpenAI、Anthropic 或 DeepSeek API Key，请求直接发到你配置的接口，成本和模型自己掌控。
 
-<p><img src="docs/images/ai-settings.png" width="280" alt="息间实际界面：AI 提供商选择、API Key 和提醒方式"></p>
+<p>
+  <img src="docs/images/runtime/ai-providers.png" width="280" alt="实际提供商下拉菜单：DeepSeek、OpenAI、Anthropic">
+</p>
 
 *应用实际界面：先选提供商，再填对应的 API Key。*
 
