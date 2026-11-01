@@ -96,6 +96,7 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
     }
     private fun batch(c: Cursor) = Batch(c.getLong(0),c.getString(1),c.getLong(2),c.getString(3),c.getString(4),c.getString(5),DeliveryTarget.fromStored(c.getString(6)))
     fun batches(): List<Batch> = readableDatabase.rawQuery("SELECT id,state,created,message,error,ids,target FROM batches ORDER BY id DESC LIMIT 80",null).use { c -> buildList { while(c.moveToNext()) add(batch(c)) } }
+    fun feishuEchoes(): List<String> = readableDatabase.rawQuery("SELECT message FROM batches WHERE target='FEISHU' AND state IN ('SENDING','DONE','UNCERTAIN') AND message<>''",null).use { c -> buildList { while(c.moveToNext()) add(c.getString(0)) } }
     fun get(id: Long): Batch? = readableDatabase.rawQuery("SELECT id,state,created,message,error,ids,target FROM batches WHERE id=?",arrayOf(id.toString())).use { if(it.moveToFirst()) batch(it) else null }
     /** The transaction fixes a snapshot. Later arrivals stay unassigned for the next batch. */
     fun createBatch(): Long? = synchronized(lock) {

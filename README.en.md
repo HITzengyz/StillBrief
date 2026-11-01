@@ -16,7 +16,7 @@ Collect phone notifications while you focus, then get a useful AI summary on you
 
 Advanced settings contain the selected provider’s model and full HTTPS endpoint, plus shared preferences and an optional Feishu signing secret. Saving advanced settings does not switch the active provider.
 
-For local reminders during Do Not Disturb, add StillBrief under **Do Not Disturb → Allowed interruptions → Apps**, or allow interruptions for the summary channel. Feishu keyword validation continues to use `息间提醒`.
+For local reminders during Do Not Disturb, add StillBrief under **Do Not Disturb → Allowed interruptions → Apps**, or allow interruptions for the summary channel. If your Feishu bot used `息间提醒` as a keyword, switch to signature verification and remove that keyword restriction.
 
 Requires Android8.0+. New installations default to local notifications; upgrades keep the existing destination. Update with the same signing key to retain records and settings.
 

@@ -43,10 +43,11 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
             val claimed=if(b.state=="QUEUED") db.claimAnalysis(id) else null
             if(claimed!=null) {
                 try {
-                    val selected=if(claimed.isEmpty()) Selection(emptySet(),"") else {
+                    val candidates=NotificationCandidates.prepare(claimed)
+                    val selected=if(candidates.isEmpty()) Selection(emptySet(),"") else {
                         val config=s.snapshot(b.target); frozen=config
                         demand(config.enabled,ErrorCode.CLOUD_DISABLED)
-                        Network.analyze(config.ai,Policy.merge(claimed))
+                        Network.analyze(config.ai,candidates)
                     }
                     db.transition(id,"ANALYZING",if(selected.ids.isEmpty()) "EMPTY" else "READY",selected.message,ids=selected.ids.joinToString(","))
                 } catch(e: Exception) {

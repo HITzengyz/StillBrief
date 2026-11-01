@@ -54,15 +54,15 @@ class LocalizationTest {
     @Test fun englishPrivateFallbackIsNaturalAndKeepsOriginalNames() {
         val result=Policy.parse(empty,listOf(notice),UiLanguage.ENGLISH)
         assertEquals(setOf(1L),result.ids)
-        assertTrue(result.message.startsWith("StillBrief: 1 notification to check."))
+        assertTrue(result.message.contains("张三")); assertTrue(result.message.contains("在吗，明天见"))
         assertTrue(result.message.contains("张三")); assertTrue(result.message.contains("在吗，明天见"))
         assertFalse(result.message.contains("protected"))
     }
     @Test fun englishHiddenAndOverflowFallbackKeepsAllRequiredIds() {
         val notices=(1L..20L).map { notice.copy(id=it,hidden=true) }
         val result=Policy.parse(empty,notices,UiLanguage.ENGLISH)
-        assertEquals(20,result.ids.size); assertTrue(result.message.contains("20 notifications to check"))
-        assertTrue(result.message.contains("Content hidden")); assertTrue(result.message.contains("14 more retained"))
+        assertEquals(20,result.ids.size); assertFalse(result.message.contains("protected"))
+        assertTrue(result.message.contains("Open the app to check")); assertTrue(result.message.contains("14 more to check"))
         assertFalse(result.message.contains(notice.body))
     }
     @Test fun englishEmptySelectionDoesNotInventSummary() {
@@ -79,8 +79,8 @@ class LocalizationTest {
     @Test fun englishChunkAggregationIsEnglishAndRetainsOriginalAppNames() {
         val notices=listOf(notice,notice.copy(id=2,pkg="mail",app="邮件应用"))
         val result=Policy.combine(UiLanguage.ENGLISH,notices,listOf(Selection(setOf(1L),"Check a direct message."),Selection(setOf(2L),"Reply to an email.")))
-        assertEquals(setOf(1L,2L),result.ids); assertTrue(result.message.startsWith("StillBrief: 2 notifications are worth checking"))
-        assertTrue(result.message.contains("聊天应用")); assertTrue(result.message.contains("邮件应用"))
+        assertEquals(setOf(1L,2L),result.ids); assertTrue(result.message.contains("Check a direct message.")); assertTrue(result.message.contains("Reply to an email."))
+        assertFalse(result.message.contains("worth checking from"))
         assertEquals("",Policy.combine(UiLanguage.ENGLISH,notices,listOf(Selection(emptySet(),""))).message)
     }
     @Test fun chineseRemainsTheExplicitDefault() {

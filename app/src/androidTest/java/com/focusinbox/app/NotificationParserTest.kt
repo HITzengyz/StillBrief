@@ -89,4 +89,67 @@ class NotificationParserTest {
         assertTrue(parsed.body.contains("Alex：Can you review this?")); assertFalse(parsed.body.contains(NotificationParser.MARKER))
     }
 
+    @Test fun genericHealthCountIsHiddenButConcreteAlertStillEligible() {
+        val placeholders=Bundle().apply { putCharSequence(Notification.EXTRA_TITLE,"华为运动健康"); putCharSequence(Notification.EXTRA_TEXT,"3条隐藏通知（内容不可见）") }
+        val generic=NotificationParser.parse(notification(placeholders),"com.huawei.health")!!
+        assertTrue(generic.hidden)
+        assertFalse(NotificationCandidates.eligible(Notice(1,"h","com.huawei.health","华为运动健康",generic.title,generic.body,1,kind=generic.kind,hidden=generic.hidden)))
+        val alert=Bundle().apply { putCharSequence(Notification.EXTRA_TITLE,"心率过高") }
+        val actual=NotificationParser.parse(notification(alert),"com.huawei.health")!!
+        assertTrue(NotificationCandidates.eligible(Notice(2,"a","com.huawei.health","华为运动健康",actual.title,actual.body,1,kind=actual.kind,hidden=actual.hidden)))
+    }
+    @Test fun prefixFreeSummaryRoundTripDoesNotLoopAndKeepsCollapsedPreviewOut() {
+        val summary="张三：请回复最新项目文档，并确认预算、交付日期以及负责人\n李四：会议改为明天下午"
+        val wire=FeishuEchoes.plainText(summary)
+        assertFalse(wire.contains(NotificationParser.MARKER)); assertEquals(summary,wire)
+        val extras=Bundle().apply {
+            putCharSequence(Notification.EXTRA_TITLE,"项目群")
+            putCharSequence(Notification.EXTRA_BIG_TEXT,wire)
+            putCharSequence(Notification.EXTRA_TEXT,wire.lineSequence().first())
+        }
+        assertNull(NotificationParser.parse(notification(extras),"com.ss.android.lark",sentSummaries=listOf(summary)))
+    }
+    @Test fun summarySplitAcrossTextLinesIsMatchedAsOneBlockAndHumanLineSurvives() {
+        val summary="张三：请回复项目文档\n李四：请确认会议时间"
+        val extras=Bundle().apply {
+            putCharSequenceArray(Notification.EXTRA_TEXT_LINES,arrayOf("机器人：张三：请回复项目文档","李四：请确认会议时间","同事：预算也请补充"))
+        }
+        val parsed=NotificationParser.parse(notification(extras),"com.ss.android.lark",sentSummaries=listOf(summary))!!
+        assertEquals("同事：预算也请补充",parsed.body)
+        val ownOnly=Bundle().apply { putCharSequenceArray(Notification.EXTRA_TEXT_LINES,summary.lines().toTypedArray()) }
+        assertNull(NotificationParser.parse(notification(ownOnly),"com.ss.android.lark",sentSummaries=listOf(summary)))
+    }
+    @Test fun humanFallbackSurvivesWhenMessagingBundleContainsOnlyRobotEcho() {
+        val summary="张三：请回复项目文档\n李四：会议改到明天下午"
+        val extras=messages(true,"项目群",message(summary,"机器人")).apply {
+            putCharSequence(Notification.EXTRA_BIG_TEXT,"同事：请回复文档")
+            putCharSequenceArray(Notification.EXTRA_TEXT_LINES,arrayOf("同事：请补充预算"))
+            putCharSequence(Notification.EXTRA_TEXT,"同事：别忘了签字")
+        }
+        val parsed=NotificationParser.parse(notification(extras),"com.ss.android.lark",sentSummaries=listOf(summary))!!
+        listOf("同事：请回复文档","同事：请补充预算","同事：别忘了签字").forEach { assertTrue(parsed.body.contains(it)) }
+        assertFalse(parsed.body.contains("会议改到明天"))
+    }
+    @Test fun multiLineMessagingEchoDoesNotHarvestShortHumanReply() {
+        val summary="好的\n张三还需要回复项目文档"
+        val extras=messages(true,"项目群",message(summary,"机器人"),message("好的","同事"))
+        val parsed=NotificationParser.parse(notification(extras),"com.lark.overseas",sentSummaries=listOf(summary))!!
+        assertEquals("同事：好的",parsed.body)
+    }
+    @Test fun matchingTextInAnotherAppOrMixedSameLineIsNotDiscarded() {
+        val summary="张三：请回复项目文档"
+        val raw="机器人：$summary；同事：请补充预算"
+        val extras=Bundle().apply { putCharSequence(Notification.EXTRA_TEXT,raw) }
+        assertTrue(NotificationParser.parse(notification(extras),"com.ss.android.lark",sentSummaries=listOf(summary))!!.body.contains("同事：请补充预算"))
+        val other=Bundle().apply { putCharSequence(Notification.EXTRA_TEXT,summary) }
+        assertEquals(summary,NotificationParser.parse(notification(other),"another.app",sentSummaries=listOf(summary))!!.body)
+    }
+
+    @Test fun shortHumanFallbackIsNotMistakenForDerivedEchoPreview() {
+        val summary="好的\n张三还需要回复文档"
+        val extras=messages(true,"项目群",message(summary,"机器人")).apply { putCharSequence(Notification.EXTRA_BIG_TEXT,"Alex：好的") }
+        val parsed=NotificationParser.parse(notification(extras),"com.ss.android.lark",sentSummaries=listOf(summary))!!
+        assertEquals("Alex：好的",parsed.body)
+    }
+
 }

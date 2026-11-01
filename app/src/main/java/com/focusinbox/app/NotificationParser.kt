@@ -11,17 +11,24 @@ object NotificationParser {
     private const val GROUP = "android.isGroupConversation"
     private val larkPackages = setOf("com.ss.android.lark", "com.lark.overseas")
     private val communicationPackages = larkPackages + setOf("com.tencent.mm", "com.tencent.mobileqq", "com.tencent.tim")
+    fun isFeishu(pkg: String)=pkg in larkPackages
     data class Parsed(val title: String, val body: String, val kind: String, val hidden: Boolean, val summary: Boolean)
 
-    fun parse(notification: Notification, pkg: String, defaultSmsPackage: String? = null): Parsed? {
+    fun parse(notification: Notification, pkg: String, defaultSmsPackage: String? = null,sentSummaries: Collection<String> = emptyList()): Parsed? {
         val extras = notification.extras ?: Bundle.EMPTY
         val isLark = pkg in larkPackages
-        var markerSeen = false
-        fun clean(text: String): String = if (!isLark) text else text.lineSequence().filter { line ->
-            val marked = line.contains(MARKER)
-            if (marked) markerSeen = true
-            !marked
-        }.joinToString("\n")
+        var suppressed = false
+        fun clean(text: String): String {
+            if(!isLark) return text
+            val legacy=text.lineSequence().filter { line ->
+                val marked=line.contains(MARKER)
+                if(marked) suppressed=true
+                !marked
+            }.joinToString("\n")
+            val result=FeishuEchoes.remove(legacy,sentSummaries)
+            if(result!=legacy) suppressed=true
+            return result
+        }
         val title = clean(extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty())
         @Suppress("DEPRECATION")
         val bundles = extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.mapNotNull { it as? Bundle }.orEmpty()
@@ -43,18 +50,22 @@ object NotificationParser {
             val sender = person ?: message.getCharSequence("sender")?.toString().orEmpty()
             if (sender.isBlank()) visible else "$sender：$visible"
         }
-        val fallback = buildList {
-            extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.let { add(clean(it)) }
-            extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.forEach { add(clean(it.toString())) }
-            extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.let { add(clean(it)) }
-        }.filter { it.isNotBlank() }
+        val rawFallback = buildList {
+            extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.let { add(it) }
+            extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString("\n")?.let { add(it) }
+            extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.let { add(it) }
+        }
+        val cleanedFallback=rawFallback.map { raw -> raw to clean(raw) }
+        val fallback=cleanedFallback.filter { (raw,visible) ->
+            visible.isNotBlank() && !(suppressed && FeishuEchoes.derivedPreview(raw,sentSummaries))
+        }.map { it.second }
         val candidates = messageTexts + fallback
         // Keep all distinct visible lines; expanded text often repeats collapsed or MessagingStyle content.
         val parts = candidates.filterIndexed { i, text ->
             candidates.withIndex().none { (j, other) -> j != i && other.contains(text) && (other.length > text.length || j < i) }
         }
         val body = parts.joinToString("\n")
-        if (isLark && markerSeen && body.isBlank()) return null
+        if (isLark && suppressed && body.isBlank()) return null
         val kind = when {
             notification.category == Notification.CATEGORY_MISSED_CALL -> "missed_call"
             notification.category == Notification.CATEGORY_CALL -> "call"
@@ -67,7 +78,7 @@ object NotificationParser {
             pkg in communicationPackages -> "message"
             else -> "unknown"
         }
-        val hidden = hiddenMedia || body.isBlank() || body.trim() in setOf(
+        val hidden = hiddenMedia || NotificationCandidates.placeholder(body) || body.isBlank() || body.trim() in setOf(
             "你收到了一条消息", "你收到一条新消息", "收到一条新消息", "新消息", "内容已隐藏", "通知内容已隐藏", "Message", "New message"
         ) || body.contains("隐藏了通知内容")
         return Parsed(title, body, kind, hidden, (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0)

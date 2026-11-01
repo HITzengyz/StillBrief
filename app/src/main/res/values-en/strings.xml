@@ -116,7 +116,7 @@
     <string name="cloud_consent_yes">I understand, enable</string>
     <string name="api_key_label">%1$s API Key</string>
     <string name="webhook_label">Feishu bot URL (Webhook)</string>
-    <string name="webhook_help">In a Feishu group, open Settings → Group bots → Add custom bot, then copy its Webhook URL.</string>
+    <string name="webhook_help">Copy the Webhook from Feishu group settings → Group bots → Add custom bot. If your bot used 息间提醒 as a keyword, switch to signature verification and remove that keyword restriction.</string>
     <string name="key_unreadable">A saved key could not be decrypted. Enter it again and save.</string>
     <string name="provider_storage_help">Keys, models, and endpoint URLs are saved separately for each provider.</string>
     <string name="save_settings">Save settings</string>

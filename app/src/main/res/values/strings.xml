@@ -116,7 +116,7 @@
     <string name="cloud_consent_yes">我知晓并启用</string>
     <string name="api_key_label">%1$s API Key</string>
     <string name="webhook_label">飞书机器人地址（Webhook）</string>
-    <string name="webhook_help">从飞书群聊 → 设置 → 群机器人 → 添加自定义机器人中复制 Webhook 地址。</string>
+    <string name="webhook_help">从飞书群聊 → 设置 → 群机器人 → 添加自定义机器人中复制Webhook。若原先用“息间提醒”作关键词，请改用签名校验并取消该关键词限制。</string>
     <string name="key_unreadable">本机密钥不可解密，请重新填写并保存。</string>
     <string name="provider_storage_help">各提供商的密钥、模型和接口地址分别保存。</string>
     <string name="save_settings">保存设置</string>

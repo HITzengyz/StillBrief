@@ -35,9 +35,7 @@ object Network {
         finally { c.disconnect() }
     }
     fun analyze(config: AiConfig, notices: List<Notice>): Selection {
-        val chunks=Policy.chunks(notices)
-        val selections=chunks.map { analyzeChunk(config,it) }
-        return Policy.combine(config.language,notices,selections)
+        return NotificationCandidates.analyze(notices,config.language) { analyzeChunk(config,it) }
     }
     private fun analyzeChunk(config: AiConfig,notices: List<Notice>): Selection {
         val request=AiAdapter.request(config,notices)
@@ -45,8 +43,8 @@ object Network {
     }
     fun send(s: RunConfig, message: String) {
         demand(validUrl(s.webhook,true),ErrorCode.WEBHOOK_INVALID)
-        // One line makes the marker cover the whole bot notification and prevents feedback loops.
-        val body=JSONObject().put("msg_type","text").put("content",JSONObject().put("text",InboxListener.MARKER+message.replace(Regex("[\\r\\n]+")," · ")))
+        // Match this exact outgoing content against persisted in-flight and delivered batch summaries.
+        val body=JSONObject().put("msg_type","text").put("content",JSONObject().put("text",FeishuEchoes.plainText(message)))
         if(s.signingKey.isNotBlank()) {
             val time=(System.currentTimeMillis()/1000).toString()
             val mac=Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec("$time\n${s.signingKey}".toByteArray(),"HmacSHA256")) }
