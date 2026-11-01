@@ -12,10 +12,38 @@ When we're deep in code, reading a paper, or trying to finish a draft, we rarely
 
 You don't need to change how people reach you. Texts, missed calls, emails, WeChat, Slack, or whatever else lands in your Android notification shade during a focus session gets quietly collected in the background:
 
-- **One brief instead of twenty pings.** Say you lock in for a 35-minute session. During that time, you get a dozen casual group chat messages, a routine system status update, and a colleague asking to confirm a meeting time. The reminder you're looking for is: *"Alex asks to confirm tomorrow afternoon's meeting time."* If nothing worth checking came in, you get nothing at all.
-- **Keep the phone out of reach.** Pair StillBrief with Android's Do Not Disturb so only its summaries can break through. Or better yet, leave your phone across the room and route summaries to **Feishu** on your desktop.
-- **Match your workflow.** Run a **Single** timer when you just need to get through one paper or task, or put it on **Loop** for all-day deep work with automatic check-ins every 30 or 45 minutes.
-- **Bring your own key.** Plug in your own OpenAI, Anthropic, or DeepSeek API key. Requests go straight to the endpoint you configure; you choose the model and pay your provider for API usage.
+### One brief instead of twenty pings
+
+Say you lock in for a 35-minute session. During that time, you get a dozen casual group chat messages, a routine system status update, and a colleague asking to confirm a meeting time. The reminder you're looking for is: *"Alex asks to confirm tomorrow afternoon's meeting time."* If nothing worth checking came in, you get nothing at all.
+
+<p><img src="docs/images/notification-triage.jpg" width="800" alt="Illustrated example: group chatter and system status are filtered, leaving a meeting reminder; noise-only rounds stay silent"></p>
+
+*Illustrated scenario with sample messages. Labels are in Chinese.*
+
+### Keep the phone out of reach
+
+Pair StillBrief with Android's Do Not Disturb so only its summaries can break through. Or better yet, leave your phone across the room and route summaries to **Feishu** on your desktop.
+
+<p><img src="docs/images/reminder-destinations.jpg" width="800" alt="Two alternative destinations: on-device reminders through DND, or summaries in desktop Feishu"></p>
+
+*Choose on-device notifications or a Feishu bot to suit your workspace.*
+
+### Match your workflow
+
+Run a **Single** timer when you just need to get through one paper or task, or put it on **Loop** for all-day deep work with automatic check-ins every 30 or 45 minutes.
+
+<p><img src="docs/images/focus.png" width="280" alt="Actual StillBrief interface showing Single and Loop modes"></p>
+
+*Actual app screen: choose Single or Loop before starting.*
+
+### Bring your own key
+
+Plug in your own OpenAI, Anthropic, or DeepSeek API key. Requests go straight to the endpoint you configure; you choose the model and pay your provider for API usage.
+
+<p><img src="docs/images/ai-settings.png" width="280" alt="Actual StillBrief interface showing AI provider, API key and reminder destination"></p>
+
+*Actual app screen: choose a provider, then enter its API key.*
+
 
 ## Quick start
 
