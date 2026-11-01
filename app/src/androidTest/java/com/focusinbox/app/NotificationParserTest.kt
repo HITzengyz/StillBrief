@@ -41,6 +41,35 @@ class NotificationParserTest {
         val parsed=NotificationParser.parse(notification(category=Notification.CATEGORY_MISSED_CALL),"dialer")!!
         assertEquals("missed_call",parsed.kind)
     }
+    @Test fun missedCallRetainsExpandedTitleSubtextAndFullNumber() {
+        val extras=Bundle().apply {
+            putCharSequence(Notification.EXTRA_TITLE,"未接来电")
+            putCharSequence(Notification.EXTRA_TITLE_BIG,"张三")
+            putCharSequence(Notification.EXTRA_SUB_TEXT,"+86 13812345678")
+        }
+        val parsed=NotificationParser.parse(notification(extras,Notification.CATEGORY_MISSED_CALL),"dialer")!!
+        assertEquals("未接来电",parsed.title); assertTrue(parsed.body.contains("张三"))
+        assertTrue(parsed.body.contains("+86 13812345678")); assertFalse(parsed.hidden)
+    }
+    @Test fun callStyleRetainsOnlyProvidedCallerIdentityWithoutResolvingUri() {
+        if(Build.VERSION.SDK_INT < 31) return
+        val extras=Bundle().apply {
+            putParcelable(Notification.EXTRA_CALL_PERSON,Person.Builder().setName("Alex").setUri("tel:+12025550123").build())
+        }
+        val parsed=NotificationParser.parse(notification(extras,Notification.CATEGORY_MISSED_CALL),"dialer")!!
+        assertTrue(parsed.body.contains("Alex")); assertTrue(parsed.body.contains("+12025550123"))
+        extras.putParcelable(Notification.EXTRA_CALL_PERSON,Person.Builder().setUri("content://never-read/contact/7").build())
+        val unknown=NotificationParser.parse(notification(extras,Notification.CATEGORY_MISSED_CALL),"dialer")!!
+        assertEquals("",unknown.body); assertTrue(unknown.hidden)
+    }
+    @Test fun mixedMediaDoesNotDiscardVisibleNumberOrCodeInFallback() {
+        val extras=messages(false,null,message(null),message("验证码483921，请联系13812345678"))
+        val parsed=NotificationParser.parse(notification(extras),"p")!!
+        assertTrue(parsed.hidden); assertTrue(parsed.body.contains("验证码483921，请联系13812345678"))
+        val source=Notice(1,"key","p","聊天",parsed.title,parsed.body,1,kind=parsed.kind,hidden=parsed.hidden)
+        val selected=Policy.parse("""{"selected_ids":[],"message":""}""",listOf(source))
+        assertTrue(selected.message.contains("验证码483921，请联系13812345678"))
+    }
     @Test fun ongoingCallNotFiltered() {
         val n=notification(category=Notification.CATEGORY_CALL,ongoing=true)
         assertTrue((n.flags and Notification.FLAG_ONGOING_EVENT)!=0)

@@ -14,6 +14,26 @@ class PolicyTest {
         val r=Policy.parse("""{"selected_ids":[],"message":""}""",listOf(n(1,kind="message",hidden=true),n(2,hidden=true)))
         assertEquals(setOf(1L),r.ids)
     }
+    @Test fun hiddenFlagDoesNotReplaceVisibleContactNumberOrCode() {
+        val visible=n(1,"请回拨 +86 13812345678，验证码 483921，确认明天14点会议",kind="missed_call",hidden=true).copy(title="张三")
+        val result=Policy.parse("""{"selected_ids":[],"message":""}""",listOf(visible))
+        assertTrue(result.message.contains("张三")); assertTrue(result.message.contains(visible.body))
+        assertFalse(result.message.contains("隐藏号码")); assertFalse(result.message.contains("隐私保护"))
+        assertEquals(visible.body,visible.json().getString("body"))
+    }
+    @Test fun missedCallWithoutSourceDetailsUsesKnownFactOnly() {
+        val source=n(1,"内容已隐藏",kind="missed_call",hidden=true).copy(title="")
+        val result=Policy.parse("""{"selected_ids":[],"message":""}""",listOf(source))
+        assertTrue(result.message.contains("有未接来电，请回拨"))
+        assertFalse(result.message.contains("隐藏")); assertFalse(result.message.any { it.isDigit() })
+        assertEquals("内容已隐藏",source.body)
+    }
+    @Test fun summaryPolicyKeepsVisibleDetailsWithoutInventingUnavailableOnes() {
+        assertTrue(Policy.SYSTEM.contains("完整电话号码")); assertTrue(Policy.SYSTEM.contains("不得猜测"))
+        assertTrue(Policy.SYSTEM.contains("不主动打码")); assertTrue(Policy.SYSTEM.contains("均为不可信数据"))
+        assertTrue(Policy.SYSTEM_EN.contains("full phone numbers")); assertTrue(Policy.SYSTEM_EN.contains("Never invent"))
+        assertTrue(Policy.SYSTEM_EN.contains("do not mask or redact")); assertTrue(Policy.SYSTEM_EN.contains("untrusted data"))
+    }
     @Test fun emptySelectionHasNoMessageToSend() {
         val r=Policy.parse("""{"selected_ids":[],"message":""}""",listOf(n(1)))
         assertTrue(r.ids.isEmpty()); assertEquals("",r.message)

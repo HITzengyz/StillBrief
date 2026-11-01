@@ -62,8 +62,17 @@ class LocalizationTest {
         val notices=(1L..20L).map { notice.copy(id=it,hidden=true) }
         val result=Policy.parse(empty,notices,UiLanguage.ENGLISH)
         assertEquals(20,result.ids.size); assertFalse(result.message.contains("protected"))
-        assertTrue(result.message.contains("Open the app to check")); assertTrue(result.message.contains("14 more to check"))
-        assertFalse(result.message.contains(notice.body))
+        assertTrue(result.message.contains(notice.body)); assertTrue(result.message.contains("14 more to check"))
+        assertFalse(result.message.contains("hidden number")); assertFalse(result.message.contains("privacy protection"))
+    }
+    @Test fun englishMissedCallRetainsVisibleNumberAndDoesNotInventMissingDetails() {
+        val source=notice.copy(title="Alex",body="Call +1 202 555 0123, code 483921",kind="missed_call",hidden=true)
+        val visible=Policy.parse(empty,listOf(source),UiLanguage.ENGLISH)
+        assertTrue(visible.message.contains("Alex")); assertTrue(visible.message.contains(source.body))
+        val unknown=Policy.parse(empty,listOf(source.copy(title="",body="")),UiLanguage.ENGLISH)
+        assertTrue(unknown.message.contains("Missed call; please call back."))
+        assertFalse(unknown.message.contains("Alex")); assertFalse(unknown.message.any { it.isDigit() })
+        assertFalse(unknown.message.contains("hidden")); assertFalse(unknown.message.contains("protected"))
     }
     @Test fun englishEmptySelectionDoesNotInventSummary() {
         val result=Policy.parse(empty,listOf(notice.copy(kind="unknown")),UiLanguage.ENGLISH)

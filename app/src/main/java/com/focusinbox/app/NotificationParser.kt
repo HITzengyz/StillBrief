@@ -54,6 +54,16 @@ object NotificationParser {
             extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.let { add(it) }
             extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString("\n")?.let { add(it) }
             extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.let { add(it) }
+            extras.getCharSequence(Notification.EXTRA_TITLE_BIG)?.toString()?.takeIf { it != title }?.let { add(it) }
+            extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()?.let { add(it) }
+            // CallStyle provides caller information in the notification itself; never resolve contact URIs.
+            if (Build.VERSION.SDK_INT >= 31 && notification.category in setOf(Notification.CATEGORY_CALL,Notification.CATEGORY_MISSED_CALL)) {
+                @Suppress("DEPRECATION")
+                val caller=extras.getParcelable<Person>(Notification.EXTRA_CALL_PERSON)
+                caller?.name?.toString()?.takeIf { it.isNotBlank() }?.let { add(it) }
+                caller?.uri?.let { android.net.Uri.parse(it) }?.takeIf { it.scheme=="tel" }
+                    ?.schemeSpecificPart?.takeIf { it.isNotBlank() }?.let { add(it) }
+            }
         }
         val cleanedFallback=rawFallback.map { raw -> raw to clean(raw) }
         val fallback=cleanedFallback.filter { (raw,visible) ->

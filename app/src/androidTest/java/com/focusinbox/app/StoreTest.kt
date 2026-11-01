@@ -12,9 +12,9 @@ import java.util.concurrent.Executors
 class StoreTest {
     private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
     private lateinit var db: Store
-    @Before fun setUp() { context.deleteDatabase("inbox-instrumentation-test.db"); db=Store(context,"inbox-instrumentation-test.db",emptySet()) { DeliveryTarget.FEISHU } }
+    @Before fun setUp() { context.deleteDatabase("inbox-instrumentation-test.db"); db=Store(context,"inbox-instrumentation-test.db",emptySet()) { DeliveryTarget.FEISHU }; db.startFocus(25,FocusMode.SINGLE) }
     @After fun tearDown() { db.close(); context.deleteDatabase("inbox-instrumentation-test.db") }
-    private fun n(body: String)=Notice(key="key",pkg="p",app="应用",title="标题",body=body,at=1)
+    private fun n(body: String)=Notice(key="key",pkg="p",app="应用",title="标题",body=body,at=System.currentTimeMillis())
     @Test fun dedupUpdateAndRepostLifecycle() {
         assertTrue(db.insert(n("A"))); assertFalse(db.insert(n("A")))
         assertTrue(db.insert(n("B"))); assertEquals(2,db.pendingCount().toInt())
@@ -32,8 +32,8 @@ class StoreTest {
     @Test fun arrivalsDuringAnalysisBelongToNextBatch() {
         db.insert(n("A")); val id=db.createBatch()!!; db.transition(id,"QUEUED","ANALYZING")
         db.insert(n("B")); assertEquals(listOf("A"),db.notices(id).map { it.body }); assertEquals(1L,db.pendingCount())
-        assertEquals(id,db.createBatch())
-        db.transition(id,"ANALYZING","EMPTY"); val next=db.createBatch()!!
+        val next=db.createBatch()!!
+        db.transition(id,"ANALYZING","EMPTY")
         assertNotEquals(id,next); assertEquals(listOf("B"),db.notices(next).map { it.body })
     }
     @Test fun sendRetryPreservesSummaryAndRecoveryRequiresManualAction() {
@@ -47,14 +47,13 @@ class StoreTest {
         db.transition(id,"READY","SENDING"); db.transition(id,"SENDING","DONE"); assertFalse(db.retry(id))
     }
     @Test fun staleOrPrematureTimerCannotFinishNewSession() {
-        db.setTimer("RUNNING",System.currentTimeMillis()+60000,60000,222)
-        assertFalse(db.finishTimer(111)); assertFalse(db.finishTimer(222))
-        db.setTimer("RUNNING",System.currentTimeMillis()-1,0,222)
-        assertTrue(db.finishTimer(222)); assertFalse(db.finishTimer(222))
+        val t=db.timer()
+        assertFalse(db.advanceTimer(t.token-1,t.end)); assertFalse(db.advanceTimer(t.token,t.end-1))
+        assertTrue(db.advanceTimer(t.token,t.end)); assertFalse(db.advanceTimer(t.token,t.end))
     }
     @Test fun sourceTimeDistinguishesRealRepeatFromDuplicateCallback() {
         val first=n("好的").copy(sourceTime=100)
-        assertTrue(db.insert(first)); assertFalse(db.insert(first.copy(at=500)))
+        assertTrue(db.insert(first)); assertFalse(db.insert(first.copy(at=System.currentTimeMillis())))
         val second=first.copy(sourceTime=200)
         assertTrue(db.insert(second)); assertFalse(db.insert(second))
         assertEquals(2L,db.pendingCount())
@@ -76,7 +75,7 @@ class StoreTest {
 
     @Test fun ongoingStatusIgnoresTimeButCommunicationDoesNot() {
         val status=n("正在共享WLAN网络").copy(ongoing=true,sourceTime=100,channelId="network")
-        assertTrue(db.insert(status)); assertFalse(db.insert(status.copy(sourceTime=200,at=500)))
+        assertTrue(db.insert(status)); assertFalse(db.insert(status.copy(sourceTime=200,at=System.currentTimeMillis())))
         assertEquals(1L,db.pendingCount())
         val chat=n("好的").copy(key="chat",kind="private",ongoing=true,sourceTime=100)
         assertTrue(db.insert(chat)); assertTrue(db.insert(chat.copy(sourceTime=200)))
@@ -122,34 +121,33 @@ class StoreTest {
         assertEquals(1,db.notices(id).size)
     }
     @Test fun remainingAdjustmentKeepsRunningOrPausedAndRejectsOldEvent() {
-        val now=System.currentTimeMillis()
-        db.setTimer("RUNNING",now-1,0,10)
+        val now=System.currentTimeMillis(); val old=db.timer()
         val running=db.adjustRemaining(15,now)!!
         assertEquals("RUNNING",running.state); assertEquals(now+900000,running.end)
-        assertTrue(running.token>10); assertFalse(db.finishTimer(10)); assertFalse(db.finishTimer(running.token))
-        db.setTimer("PAUSED",0,10000,running.token)
-        val paused=db.adjustRemaining(35,now)!!
+        assertTrue(running.token>old.token); assertFalse(db.advanceTimer(old.token,now)); assertFalse(db.advanceTimer(running.token,now))
+        db.pauseFocus(now+1)
+        val paused=db.adjustRemaining(35,now+2)!!
         assertEquals("PAUSED",paused.state); assertEquals(0L,paused.end); assertEquals(2100000L,paused.remaining)
-        assertTrue(paused.token>running.token); assertFalse(db.finishTimer(running.token))
-        db.setTimer("IDLE",0,0,paused.token)
-        assertNull(db.adjustRemaining(25,now)); assertEquals("IDLE",db.timer().state)
+        assertTrue(paused.token>running.token); assertFalse(db.advanceTimer(running.token,now+2))
+        db.stopFocus(now+3)
+        assertNull(db.adjustRemaining(25,now+4)); assertEquals("IDLE",db.timer().state)
     }
     @Test fun legacyAppExclusionsImportOnlyOnce() {
         val name="inbox-legacy-filters-test.db"
         context.deleteDatabase(name)
         try {
             Store(context,name,setOf("blocked.app")).use { migrated ->
-                assertEquals("blocked.app",migrated.filters().single().pkg)
+                assertEquals("blocked.app",migrated.filters().single().pkg); migrated.startFocus(25,FocusMode.SINGLE)
                 assertFalse(migrated.insert(n("通知").copy(pkg="blocked.app")))
                 migrated.removeFilter(migrated.filters().single().id)
             }
             Store(context,name,setOf("blocked.app")).use { reopened ->
-                assertTrue(reopened.filters().isEmpty())
+                assertTrue(reopened.filters().isEmpty()); reopened.startFocus(25,FocusMode.SINGLE)
                 assertTrue(reopened.insert(n("通知").copy(pkg="blocked.app")))
             }
         } finally { context.deleteDatabase(name) }
     }
-    @Test fun v1MigrationPreservesNoticesBatchesTimerAndAddsDefaults() {
+    @Test fun v1MigrationPreservesHistoryAndStopsUnattributedLegacyTimer() {
         val name="inbox-v1-migration-test.db"
         context.deleteDatabase(name)
         try {
@@ -165,12 +163,13 @@ class StoreTest {
                 old.version=1
             }
             Store(context,name,emptySet()).use { upgraded ->
-                assertEquals(3,upgraded.readableDatabase.version)
+                assertEquals(4,upgraded.readableDatabase.version)
                 assertEquals(DeliveryTarget.FEISHU,upgraded.get(1)!!.target)
                 val notice=upgraded.notices(1).single()
                 assertEquals("旧私聊",notice.body); assertEquals(0L,notice.sourceTime); assertFalse(notice.ongoing); assertEquals("",notice.channelId)
                 assertEquals("旧摘要",upgraded.get(1)!!.message); assertEquals("DONE",upgraded.get(1)!!.state)
-                assertEquals("PAUSED",upgraded.timer().state); assertEquals(60000L,upgraded.timer().remaining); assertEquals(123L,upgraded.timer().token)
+                assertEquals("IDLE",upgraded.timer().state); assertEquals(0L,upgraded.timer().remaining); assertTrue(upgraded.timer().token>123)
+                upgraded.startFocus(25,FocusMode.SINGLE)
                 assertTrue(upgraded.insert(n("升级后通知").copy(channelId="new",ongoing=true)))
             }
         } finally { context.deleteDatabase(name) }

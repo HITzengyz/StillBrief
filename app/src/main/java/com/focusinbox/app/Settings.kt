@@ -32,6 +32,7 @@ class Settings(context: Context, prefsName: String = "settings") {
     val destination: DeliveryTarget get() = DeliveryTarget.fromStored(prefs.getString("destination",DeliveryTarget.LOCAL.name)!!)
     val provider: Provider get() = Provider.fromId(prefs.getString("provider",Provider.DEEPSEEK.id)!!)
     var enabled: Boolean get() = prefs.getBoolean("enabled", false); set(v) { synchronized(lock) { prefs.edit().putBoolean("enabled", v).commit() } }
+    var focusMode: FocusMode get() = FocusMode.fromStored(prefs.getString("focusMode",null)); set(v) { prefs.edit().putString("focusMode",v.name).commit() }
     var minutes: Int get() = prefs.getInt("minutes", 25); set(v) { prefs.edit().putInt("minutes", v).commit() }
     // Aliases preserve existing local callers while each provider owns its own values.
     var model: String get() = prefs.getString("provider.${provider.id}.model",provider.model)!!; set(v) { synchronized(lock) { prefs.edit().putString("provider.${provider.id}.model", v).commit() } }

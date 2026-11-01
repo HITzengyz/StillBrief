@@ -18,9 +18,9 @@ class DeliveryStoreTest {
     private val name="inbox-delivery-test.db"
     private val selected=AtomicReference(DeliveryTarget.LOCAL)
     private lateinit var db: Store
-    @Before fun before() { context.deleteDatabase(name); selected.set(DeliveryTarget.LOCAL); db=Store(context,name,emptySet()) { selected.get() } }
+    @Before fun before() { context.deleteDatabase(name); selected.set(DeliveryTarget.LOCAL); db=Store(context,name,emptySet()) { selected.get() }; db.startFocus(25,FocusMode.SINGLE) }
     @After fun after() { db.close(); context.deleteDatabase(name) }
-    private fun add(text: String="Synthetic")=db.insert(Notice(key="k",pkg="p",app="App",title="Title",body=text,at=1))
+    private fun add(text: String="Synthetic")=db.insert(Notice(key="k",pkg="p",app="App",title="Title",body=text,at=System.currentTimeMillis()))
     private fun ready(target: DeliveryTarget): Long {
         selected.set(target); add(); val id=db.createBatch()!!
         db.transition(id,"QUEUED","ANALYZING"); db.transition(id,"ANALYZING","READY","Existing summary",ids="1")
@@ -29,10 +29,10 @@ class DeliveryStoreTest {
     @Test fun newBatchKeepsItsTargetWhileFutureBatchesUseTheNewChoice() {
         add("First"); val first=db.createBatch()!!
         selected.set(DeliveryTarget.FEISHU)
-        add("Second"); assertEquals(first,db.createBatch())
+        add("Second"); val second=db.createBatch()!!
+        assertNotEquals(first,second)
         assertEquals(DeliveryTarget.LOCAL,db.get(first)!!.target)
         db.transition(first,"QUEUED","ANALYZING"); db.transition(first,"ANALYZING","EMPTY")
-        val second=db.createBatch()!!
         assertEquals(DeliveryTarget.FEISHU,db.get(second)!!.target)
         assertEquals(DeliveryTarget.LOCAL,db.get(first)!!.target)
     }
@@ -80,7 +80,7 @@ class DeliveryStoreTest {
         selected.set(DeliveryTarget.FEISHU); assertEquals(DeliveryTarget.LOCAL,db.get(id)!!.target)
         assertTrue(db.retry(id,DeliveryTarget.FEISHU)); assertEquals("QUEUED",db.get(id)!!.state); assertEquals(DeliveryTarget.FEISHU,db.get(id)!!.target)
     }
-    @Test fun v2MigrationPreservesHistoryFiltersAndTimerAndDefaultsOldBatchesToFeishu() {
+    @Test fun v2MigrationPreservesHistoryFiltersStopsTimerAndDefaultsOldBatchesToFeishu() {
         db.close(); context.deleteDatabase(name)
         SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(name),null).use { old ->
             old.execSQL("CREATE TABLE notices(id INTEGER PRIMARY KEY AUTOINCREMENT,nkey TEXT NOT NULL,pkg TEXT NOT NULL,app TEXT NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,at INTEGER NOT NULL,kind TEXT NOT NULL,hidden INTEGER NOT NULL,summary INTEGER NOT NULL,sourceTime INTEGER NOT NULL DEFAULT 0,ongoing INTEGER NOT NULL DEFAULT 0,channelId TEXT NOT NULL DEFAULT '',fingerprint TEXT NOT NULL,batch INTEGER)")
@@ -97,11 +97,11 @@ class DeliveryStoreTest {
             old.version=2
         }
         db=Store(context,name,emptySet()) { DeliveryTarget.LOCAL }
-        assertEquals(3,db.readableDatabase.version)
+        assertEquals(4,db.readableDatabase.version)
         val old=db.get(9001)!!
         assertEquals(DeliveryTarget.FEISHU,old.target); assertEquals("旧摘要",old.message); assertEquals("旧错误",old.error)
         assertEquals("旧正文",db.notices(9001).single().body); assertEquals("spam",db.filters().single().value)
-        assertEquals("PAUSED",db.timer().state); assertEquals(60000L,db.timer().remaining); assertEquals(123L,db.timer().token)
+        assertEquals("IDLE",db.timer().state); assertEquals(0L,db.timer().remaining); assertTrue(db.timer().token>123)
         assertTrue(db.retry(9001,DeliveryTarget.LOCAL)); assertEquals(DeliveryTarget.LOCAL,db.get(9001)!!.target)
     }
 }

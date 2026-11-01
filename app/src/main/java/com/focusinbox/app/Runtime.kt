@@ -23,14 +23,14 @@ class FocusApp : Application() {
 }
 object BatchEngine {
     fun trigger(c: Context) {
-        val id=Store(c).use { it.createBatch() } ?: return
-        enqueue(c,id)
+        Store(c).use { it.createBatch() }
+        TimerEngine.restore(c)
     }
     fun enqueue(c: Context,id: Long,retry: Boolean=false) {
         WorkManager.getInstance(c).enqueueUniqueWork("batch-$id",if(retry) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP,
             OneTimeWorkRequestBuilder<BatchWorker>().setInputData(workDataOf("id" to id)).build())
     }
-    fun resume(c: Context) { Store(c).use { it.batches().filter { b -> Policy.mayClaim(b.state) }.forEach { b -> enqueue(c,b.id) } } }
+    fun resume(c: Context) { Store(c).use { it.claimableBatches().forEach { b -> enqueue(c,b.id) } } }
     fun retry(c: Context,id: Long,target: DeliveryTarget?=null) { if(Store(c).use { it.retry(id,target) }) enqueue(c,id,true) }
 }
 class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
@@ -84,46 +84,59 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
 object TimerEngine {
     private fun pending(c: Context,token: Long=0)=PendingIntent.getBroadcast(c,1,Intent(c,TimerReceiver::class.java).setData(android.net.Uri.parse("focusinbox://timer/$token")).putExtra("token",token),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     fun exact(c: Context): Boolean = android.os.Build.VERSION.SDK_INT<31 || c.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+    private fun cancel(c: Context,token: Long) {
+        c.getSystemService(AlarmManager::class.java).cancel(pending(c,token))
+        WorkManager.getInstance(c).cancelUniqueWork("focus-timer-$token")
+    }
     @Synchronized fun start(c: Context) {
-        val t=Store(c).use { it.timer() }
-        if(t.state=="RUNNING") return
-        val remaining=if(t.state=="PAUSED") t.remaining else Settings(c).minutes*60_000L
-        val now=System.currentTimeMillis()
-        val token=maxOf(now,t.token+1)
-        Store(c).use { it.setTimer("RUNNING",now+remaining,remaining,token) }
-        restore(c)
+        val old=Store(c).use { it.timer() }
+        val s=Settings(c)
+        val t=Store(c).use { it.startFocus(s.minutes,s.focusMode) }
+        if(old.token!=t.token) cancel(c,old.token)
+        schedule(c,t); BatchEngine.resume(c)
     }
     @Synchronized fun pause(c: Context) {
-        Store(c).use { db -> val t=db.timer(); if(t.state=="RUNNING") db.setTimer("PAUSED",0,(t.end-System.currentTimeMillis()).coerceAtLeast(0),t.token) }
-        cancel(c)
+        val old=Store(c).use { it.timer() }
+        Store(c).use { it.pauseFocus() }
+        cancel(c,old.token); BatchEngine.resume(c)
     }
     @Synchronized fun rest(c: Context) {
-        cancel(c)
-        Store(c).use { db -> db.setTimer("IDLE",0,0,System.currentTimeMillis()) }
-        BatchEngine.trigger(c)
+        val old=Store(c).use { it.timer() }
+        Store(c).use { it.stopFocus() }
+        cancel(c,old.token); BatchEngine.resume(c)
     }
-    private fun cancel(c: Context) { val token=Store(c).use { it.timer().token }; c.getSystemService(AlarmManager::class.java).cancel(pending(c,token)); WorkManager.getInstance(c).cancelUniqueWork("focus-timer") }
     @Synchronized fun adjustRemaining(c: Context,minutes: Int): Boolean {
-        cancel(c)
-        val changed=Store(c).use { it.adjustRemaining(minutes) } ?: return false
-        if(changed.state=="RUNNING") restore(c)
-        return true
+        val old=Store(c).use { it.timer() }
+        val changed=Store(c).use { it.adjustRemaining(minutes) }
+        cancel(c,old.token)
+        schedule(c,Store(c).use { it.timer() }); BatchEngine.resume(c)
+        return changed!=null
     }
     @Synchronized fun restore(c: Context) {
-        val t=Store(c).use { it.timer() }
+        val old=Store(c).use { it.timer() }
+        Store(c).use { it.advanceTimer() }
+        val current=Store(c).use { it.timer() }
+        if(old.token!=current.token) cancel(c,old.token)
+        // Pre-2.0 used this one shared timer work name. It is never used for new rounds.
+        WorkManager.getInstance(c).cancelUniqueWork("focus-timer")
+        schedule(c,current); BatchEngine.resume(c)
+    }
+    private fun schedule(c: Context,t: Store.Timer) {
         if(t.state!="RUNNING") return
         val delay=(t.end-System.currentTimeMillis()).coerceAtLeast(0)
-        if(delay==0L) { finish(c,t.token); return }
         val alarm=c.getSystemService(AlarmManager::class.java)
         try {
             if(exact(c)) alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,t.end,pending(c,t.token))
             else alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,t.end,pending(c,t.token))
         } catch(_: SecurityException) { alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,t.end,pending(c,t.token)) }
-        WorkManager.getInstance(c).enqueueUniqueWork("focus-timer",ExistingWorkPolicy.REPLACE,
+        WorkManager.getInstance(c).enqueueUniqueWork("focus-timer-${t.token}",ExistingWorkPolicy.KEEP,
             OneTimeWorkRequestBuilder<TimerWorker>().setInitialDelay(delay,TimeUnit.MILLISECONDS).setInputData(workDataOf("token" to t.token)).build())
     }
     @Synchronized fun finish(c: Context,token: Long) {
-        Store(c).use { it.finishAndSnapshot(token) }
+        val changed=Store(c).use { it.advanceTimer(token) }
+        if(!changed) return
+        // The next round has a different unique work name; enqueueing it never cancels this worker.
+        schedule(c,Store(c).use { it.timer() })
         BatchEngine.resume(c)
     }
 }
