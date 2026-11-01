@@ -14,6 +14,11 @@ class Settings(context: Context, prefsName: String = "settings") {
     companion object { private val lock=Any() }
     private val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
     init { synchronized(lock) {
+        if(!prefs.contains("destination")) {
+            // Locale initialization may have written only language; that is still a fresh install.
+            val legacy=prefs.getBoolean("providers_migrated",false) || listOf("provider","key","hook","enabled","endpoint","model").any { prefs.contains(it) }
+            prefs.edit().putString("destination",if(legacy) DeliveryTarget.FEISHU.name else DeliveryTarget.LOCAL.name).commit()
+        }
         if(!prefs.getBoolean("providers_migrated",false)) {
             val editor=prefs.edit()
             prefs.getString("key",null)?.let { editor.putString("provider.deepseek.key",it) }
@@ -24,6 +29,7 @@ class Settings(context: Context, prefsName: String = "settings") {
         }
     } }
     var language: UiLanguage get() = UiLanguage.fromTag(prefs.getString("language","zh")); set(v) { synchronized(lock) { prefs.edit().putString("language",v.tag).commit() } }
+    val destination: DeliveryTarget get() = DeliveryTarget.fromStored(prefs.getString("destination",DeliveryTarget.LOCAL.name)!!)
     val provider: Provider get() = Provider.fromId(prefs.getString("provider",Provider.DEEPSEEK.id)!!)
     var enabled: Boolean get() = prefs.getBoolean("enabled", false); set(v) { synchronized(lock) { prefs.edit().putBoolean("enabled", v).commit() } }
     var minutes: Int get() = prefs.getInt("minutes", 25); set(v) { prefs.edit().putInt("minutes", v).commit() }
@@ -41,22 +47,28 @@ class Settings(context: Context, prefsName: String = "settings") {
     fun config(p: Provider): AiConfig = synchronized(lock) {
         AiConfig(p,secret("provider.${p.id}.key"),providerEndpoint(p),providerModel(p),prompt,language)
     }
-    fun snapshot(): RunConfig = synchronized(lock) { RunConfig(enabled,config(provider),webhook,signingKey) }
+    fun snapshot(target: DeliveryTarget=destination): RunConfig = synchronized(lock) {
+        RunConfig(enabled,config(provider),if(target==DeliveryTarget.FEISHU) webhook else "",if(target==DeliveryTarget.FEISHU) signingKey else "",target)
+    }
     /** Only basic save chooses the active provider. Advanced saves never switch it. */
     fun saveBasic(key: String,hook: String,on: Boolean) = saveBasic(provider,key,hook,on)
-    fun saveBasic(p: Provider,key: String,hook: String,on: Boolean) = synchronized(lock) {
+    fun saveBasic(p: Provider,key: String,hook: String,on: Boolean) = saveBasic(p,key,hook,on,DeliveryTarget.FEISHU)
+    fun saveBasic(p: Provider,key: String,hook: String,on: Boolean,target: DeliveryTarget) = synchronized(lock) {
         val encryptedKey=if(key.isBlank()) null else encrypt(key)
-        val encryptedHook=if(hook.isBlank()) null else encrypt(hook)
-        prefs.edit().putString("provider.${p.id}.key",encryptedKey).putString("hook",encryptedHook)
-            .putString("provider",p.id).putBoolean("enabled",on).commit()
+        val editor=prefs.edit().putString("provider.${p.id}.key",encryptedKey)
+            .putString("provider",p.id).putBoolean("enabled",on).putString("destination",target.name)
+        if(target==DeliveryTarget.FEISHU) editor.putString("hook",if(hook.isBlank()) null else encrypt(hook))
+        editor.commit()
         Unit
     }
     fun saveAdvanced(endpointValue: String,modelValue: String,signValue: String,promptValue: String) =
         saveAdvanced(provider,endpointValue,modelValue,signValue,promptValue)
-    fun saveAdvanced(p: Provider,endpointValue: String,modelValue: String,signValue: String,promptValue: String) = synchronized(lock) {
-        val encryptedSign=if(signValue.isBlank()) null else encrypt(signValue)
-        prefs.edit().putString("provider.${p.id}.endpoint",endpointValue).putString("provider.${p.id}.model",modelValue)
-            .putString("sign",encryptedSign).putString("prompt",promptValue).commit()
+    fun saveAdvanced(p: Provider,endpointValue: String,modelValue: String,signValue: String,promptValue: String) =
+        saveAdvanced(p,endpointValue,modelValue,signValue,promptValue,DeliveryTarget.FEISHU)
+    fun saveAdvanced(p: Provider,endpointValue: String,modelValue: String,signValue: String,promptValue: String,target: DeliveryTarget) = synchronized(lock) {
+        val editor=prefs.edit().putString("provider.${p.id}.endpoint",endpointValue).putString("provider.${p.id}.model",modelValue).putString("prompt",promptValue)
+        if(target==DeliveryTarget.FEISHU) editor.putString("sign",if(signValue.isBlank()) null else encrypt(signValue))
+        editor.commit()
         Unit
     }
     private fun key(): SecretKey {

@@ -65,6 +65,9 @@ object LocaleHelper {
             ErrorCode.SEND_CONFIG -> R.string.error_send_config
             ErrorCode.SEND_UNCERTAIN -> R.string.error_send_uncertain
             ErrorCode.ANALYSIS_INTERRUPTED -> R.string.error_analysis_interrupted
+            ErrorCode.LOCAL_NOTIFICATIONS_DISABLED -> R.string.error_local_notifications_disabled
+            ErrorCode.LOCAL_SEND_FAILED -> R.string.error_local_send_failed
+            ErrorCode.LOCAL_INTERRUPTED -> R.string.error_local_interrupted
         }
         return if(code==ErrorCode.HTTP) context.getString(id,fields.getOrNull(1)?.toIntOrNull() ?: 0) else context.getString(id)
     }

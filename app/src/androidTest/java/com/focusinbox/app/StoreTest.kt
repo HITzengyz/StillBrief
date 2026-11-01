@@ -12,7 +12,7 @@ import java.util.concurrent.Executors
 class StoreTest {
     private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
     private lateinit var db: Store
-    @Before fun setUp() { context.deleteDatabase("inbox-instrumentation-test.db"); db=Store(context,"inbox-instrumentation-test.db") }
+    @Before fun setUp() { context.deleteDatabase("inbox-instrumentation-test.db"); db=Store(context,"inbox-instrumentation-test.db",emptySet()) { DeliveryTarget.FEISHU } }
     @After fun tearDown() { db.close(); context.deleteDatabase("inbox-instrumentation-test.db") }
     private fun n(body: String)=Notice(key="key",pkg="p",app="应用",title="标题",body=body,at=1)
     @Test fun dedupUpdateAndRepostLifecycle() {
@@ -165,7 +165,8 @@ class StoreTest {
                 old.version=1
             }
             Store(context,name,emptySet()).use { upgraded ->
-                assertEquals(2,upgraded.readableDatabase.version)
+                assertEquals(3,upgraded.readableDatabase.version)
+                assertEquals(DeliveryTarget.FEISHU,upgraded.get(1)!!.target)
                 val notice=upgraded.notices(1).single()
                 assertEquals("旧私聊",notice.body); assertEquals(0L,notice.sourceTime); assertFalse(notice.ongoing); assertEquals("",notice.channelId)
                 assertEquals("旧摘要",upgraded.get(1)!!.message); assertEquals("DONE",upgraded.get(1)!!.state)

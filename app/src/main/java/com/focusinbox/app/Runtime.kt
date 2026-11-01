@@ -15,6 +15,7 @@ class FocusApp : Application() {
     override fun onCreate() {
         super.onCreate()
         LocaleHelper.initialize(this)
+        LocalNotifier.ensureChannel(this)
         Store(this).use { it.recover(); it.prune() }
         TimerEngine.restore(this)
         BatchEngine.resume(this)
@@ -30,7 +31,7 @@ object BatchEngine {
             OneTimeWorkRequestBuilder<BatchWorker>().setInputData(workDataOf("id" to id)).build())
     }
     fun resume(c: Context) { Store(c).use { it.batches().filter { b -> Policy.mayClaim(b.state) }.forEach { b -> enqueue(c,b.id) } } }
-    fun retry(c: Context,id: Long) { if(Store(c).use { it.retry(id) }) enqueue(c,id,true) }
+    fun retry(c: Context,id: Long,target: DeliveryTarget?=null) { if(Store(c).use { it.retry(id,target) }) enqueue(c,id,true) }
 }
 class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
     override fun doWork(): Result {
@@ -43,7 +44,7 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
             if(claimed!=null) {
                 try {
                     val selected=if(claimed.isEmpty()) Selection(emptySet(),"") else {
-                        val config=s.snapshot(); frozen=config
+                        val config=s.snapshot(b.target); frozen=config
                         demand(config.enabled,ErrorCode.CLOUD_DISABLED)
                         Network.analyze(config.ai,Policy.merge(claimed))
                     }
@@ -58,16 +59,19 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
             b=db.get(id)?:return Result.success()
             if(b.state=="READY" && db.transition(id,"READY","SENDING")) {
                 try {
-                    val config=frozen ?: s.snapshot()
+                    val config=frozen ?: s.snapshot(b.target)
                     demand(s.enabled && config.enabled,ErrorCode.CLOUD_DISABLED)
-                    Network.send(config,b.message)
-                    db.transition(id,"SENDING","DONE")
+                    val sent=DeliveryDispatcher.send(b,config,
+                        local={ batchId,message,language -> LocalNotifier.post(applicationContext,batchId,message,language) },
+                        feishu={ snapshot,message -> Network.send(snapshot,message) })
+                    db.transition(id,"SENDING",if(sent) "DONE" else "EMPTY")
                 } catch(e: Exception) {
-                    val uncertain=e !is IllegalArgumentException && e !is RemoteFailure
+                    val uncertain=DeliveryDispatcher.failureState(b.target,e)=="UNCERTAIN"
                     db.transition(id,"SENDING",if(uncertain) "UNCERTAIN" else "SEND_FAILED",error=when {
                         uncertain -> ErrorCode.SEND_UNCERTAIN.encoded()
                         e is RemoteFailure -> e.code.encoded(e.number)
                         e is AppFailure -> e.code.encoded(e.number)
+                        b.target==DeliveryTarget.LOCAL -> ErrorCode.LOCAL_SEND_FAILED.encoded()
                         else -> ErrorCode.SEND_CONFIG.encoded()
                     })
                 }

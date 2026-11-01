@@ -110,4 +110,41 @@ class SettingsTest {
         assertEquals(before,prefs.all.filterKeys { it!="language" })
     }
 
+    @Test fun freshAndLanguageOnlySettingsDefaultLocalButLegacyDefaultsFeishu() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val name="settings-target-migration-test"
+        val prefs=context.getSharedPreferences(name,0)
+        try {
+            prefs.edit().clear().commit()
+            assertEquals(DeliveryTarget.LOCAL,Settings(context,name).destination)
+            prefs.edit().clear().putString("language","en").commit()
+            assertEquals(DeliveryTarget.LOCAL,Settings(context,name).destination)
+            assertEquals(UiLanguage.ENGLISH,Settings(context,name).language)
+            prefs.edit().clear().putBoolean("providers_migrated",true).putString("provider",Provider.OPENAI.id).commit()
+            assertEquals(DeliveryTarget.FEISHU,Settings(context,name).destination)
+        } finally { prefs.edit().clear().commit() }
+    }
+    @Test fun localSnapshotAndSavesIgnoreAndPreserveUnreadableFeishuSecrets() = isolated("settings-local-secret-test") { settings,prefs ->
+        settings.saveBasic(Provider.OPENAI,"test-key","",true,DeliveryTarget.LOCAL)
+        prefs.edit().putString("hook","not-a-valid-ciphertext").putString("sign","also-not-a-valid-ciphertext").commit()
+        val beforeHook=prefs.getString("hook",null); val beforeSign=prefs.getString("sign",null)
+        val config=settings.snapshot(DeliveryTarget.LOCAL)
+        assertEquals(DeliveryTarget.LOCAL,config.target); assertEquals("",config.webhook); assertEquals("",config.signingKey)
+        settings.saveBasic(Provider.OPENAI,"new-test-key","",true,DeliveryTarget.LOCAL)
+        settings.saveAdvanced(Provider.OPENAI,"https://example.com/v1/chat/completions","local-model","","本机偏好",DeliveryTarget.LOCAL)
+        assertEquals(beforeHook,prefs.getString("hook",null)); assertEquals(beforeSign,prefs.getString("sign",null))
+        assertEquals("new-test-key",settings.snapshot(DeliveryTarget.LOCAL).ai.key)
+    }
+    @Test fun requestedBatchDestinationWinsOverLaterSavedSelection() = isolated("settings-target-snapshot-test") { settings,_ ->
+        settings.saveBasic(Provider.DEEPSEEK,"synthetic-key","https://open.feishu.cn/open-apis/bot/v2/hook/test",true,DeliveryTarget.FEISHU)
+        settings.saveAdvanced(Provider.DEEPSEEK,Provider.DEEPSEEK.endpoint,Provider.DEEPSEEK.model,"synthetic-sign","",DeliveryTarget.FEISHU)
+        val frozen=settings.snapshot(DeliveryTarget.FEISHU)
+        settings.saveBasic(Provider.DEEPSEEK,"synthetic-key","",true,DeliveryTarget.LOCAL)
+        assertEquals(DeliveryTarget.LOCAL,settings.destination)
+        assertEquals(DeliveryTarget.FEISHU,frozen.target); assertTrue(frozen.webhook.isNotEmpty())
+        assertEquals(DeliveryTarget.FEISHU,settings.snapshot(DeliveryTarget.FEISHU).target)
+        assertEquals("synthetic-sign",settings.snapshot(DeliveryTarget.FEISHU).signingKey)
+        assertEquals("",settings.snapshot(DeliveryTarget.LOCAL).signingKey)
+    }
+
 }

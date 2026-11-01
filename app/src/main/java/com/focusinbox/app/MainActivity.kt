@@ -1,6 +1,8 @@
 package com.focusinbox.app
 
 import android.app.Activity
+import android.Manifest
+import android.content.pm.PackageManager
 import android.app.AlertDialog
 import android.app.ActivityManager
 import android.app.NotificationManager
@@ -38,6 +40,7 @@ class MainActivity : Activity() {
     private var pauseButton: Button?=null
     private var restButton: Button?=null
     private var noticeDialog: AlertDialog?=null
+    private var localStatusView: TextView?=null
     private var savedForm: SettingsDraft?=null
     private var captureForm: (() -> SettingsDraft)?=null
     private fun tr(id: Int,vararg args: Any): String = getString(id,*args)
@@ -57,11 +60,13 @@ class MainActivity : Activity() {
         val retained=lastNonConfigurationInstance as? RetainedScreen
         savedForm=retained?.draft
         show(retained?.page ?: 0)
+        handleNotificationIntent(intent)
     }
     override fun onResume() {
         super.onResume()
         getSystemService(ActivityManager::class.java).appTasks.forEach { it.setExcludeFromRecents(settings.hideRecents) }
-        if(page==4) show(4)
+        if(page==4 || page==5) show(page)
+        if(page==2) refreshLocalStatus()
         handler.post(tick)
     }
     override fun onPause() { handler.removeCallbacks(tick); super.onPause() }
@@ -83,6 +88,7 @@ class MainActivity : Activity() {
     private fun show(which: Int) {
         if(page==2) savedForm=captureForm?.invoke() ?: savedForm
         captureForm=null
+        localStatusView=null
         page=which; clock=null; status=null; pending=null; startButton=null; pauseButton=null; restButton=null
         val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(245,247,243)) }
         val top=LinearLayout(this).apply { setPadding(dp(20),dp(16),dp(20),0); orientation=LinearLayout.VERTICAL }
@@ -91,7 +97,7 @@ class MainActivity : Activity() {
         val nav=LinearLayout(this).apply { gravity=Gravity.CENTER; setPadding(dp(12),0,dp(12),dp(6)) }
         listOf(tr(R.string.nav_focus),tr(R.string.nav_notices),tr(R.string.nav_settings)).forEachIndexed { i,name -> nav.addView(Button(this).apply { text=if(i==which || i==2 && which>=2) "● $name" else name; setTextColor(green); textSize=14f; isAllCaps=false; minimumHeight=dp(54); setPadding(dp(4),dp(10),dp(4),dp(10)); stateListAnimator=null; elevation=0f; background=GradientDrawable().apply { setColor(if(i==which || i==2 && which>=2) Color.rgb(223,237,226) else Color.TRANSPARENT); cornerRadius=dp(12).toFloat() }; setOnClickListener { show(i) } },LinearLayout.LayoutParams(0,-2,1f)) }; root.addView(nav)
         setContentView(root)
-        when(which) { 0 -> home(); 1 -> history(); 2 -> preferences(); 3 -> filtersPage(); 4 -> backgroundPage() }
+        when(which) { 0 -> home(); 1 -> history(); 2 -> preferences(); 3 -> filtersPage(); 4 -> backgroundPage(); 5 -> localNotificationPage() }
     }
     private fun home() {
         val c=card(); label(tr(R.string.focus_title),17f,true,c)
@@ -170,15 +176,19 @@ class MainActivity : Activity() {
             label(tr(R.string.recent_batches),17f,true)
             if(batches.isEmpty()) label(tr(R.string.history_empty),13f)
             batches.forEach { b ->
-                val c=card(); label("#${b.id} · ${stateName(b.state)}",16f,true,c); label(time(b.created),12f,parent=c)
+                val c=card(); label("#${b.id} · ${stateName(b.state)}",16f,true,c); label(time(b.created),12f,parent=c); label(tr(R.string.batch_destination,targetName(b.target)),12f,parent=c)
                 if(b.message.isNotBlank()) label(b.message,14f,parent=c)
                 if(b.error.isNotBlank()) label(LocaleHelper.renderError(this,b.error),14f,parent=c)
                 val unprocessed=b.state in setOf("QUEUED","FAILED")
                 val records=if(unprocessed) db.visibleNotices(b.id) else db.notices(b.id)
                 button(tr(R.string.batch_records,records.size),c) { showNotices(Store(this).use { if(unprocessed) it.visibleNotices(b.id) else it.notices(b.id) },!unprocessed) }
                 if(b.state in setOf("FAILED","SEND_FAILED","UNCERTAIN")) button(tr(R.string.retry_manual),c) {
-                    AlertDialog.Builder(this).setTitle(tr(R.string.retry_title)).setMessage(if(b.state=="UNCERTAIN") tr(R.string.retry_uncertain) else if(b.state=="SEND_FAILED") tr(R.string.retry_send) else tr(R.string.retry_analysis))
-                        .setNegativeButton(tr(R.string.cancel),null).setPositiveButton(tr(R.string.retry_confirm)) { _,_ -> BatchEngine.retry(this,b.id); show(1) }.show()
+                    val requested=settings.destination
+                    val changing=requested!=b.target
+                    val reason=if(b.state=="UNCERTAIN") tr(R.string.retry_uncertain_target,targetName(b.target)) else if(b.state=="SEND_FAILED") tr(R.string.retry_send) else tr(R.string.retry_analysis)
+                    val route=if(changing) tr(R.string.retry_change_target,targetName(requested),targetName(b.target)) else tr(R.string.retry_same_target,targetName(b.target))
+                    AlertDialog.Builder(this).setTitle(tr(R.string.retry_title)).setMessage(reason+"\n\n"+route)
+                        .setNegativeButton(tr(R.string.cancel),null).setPositiveButton(tr(R.string.retry_confirm)) { _,_ -> BatchEngine.retry(this,b.id,if(changing) requested else null); show(1) }.show()
                 }
             }
             label(tr(R.string.recent_notices),17f,true)
@@ -197,8 +207,14 @@ class MainActivity : Activity() {
         if(audit && Store(this).use { it.isFiltered(n) }) label(tr(R.string.audit_filtered),12f,parent=c)
         button(tr(R.string.filter_notice),c) { filterNotice(n) }
     }
-    private fun showNotices(notices: List<Notice>,audit: Boolean=false) {
+    private fun showNotices(notices: List<Notice>,audit: Boolean=false,batch: Batch?=null) {
         val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(16),dp(8),dp(16),dp(16)) }
+        if(batch!=null) {
+            label(tr(R.string.batch_detail_title,batch.id),18f,true,list)
+            label(tr(R.string.batch_destination,targetName(batch.target))+" · "+stateName(batch.state),13f,parent=list)
+            if(batch.message.isNotBlank()) label(batch.message,15f,parent=list)
+            if(batch.error.isNotBlank()) label(LocaleHelper.renderError(this,batch.error),13f,parent=list)
+        }
         label(if(audit) tr(R.string.audit_help) else tr(R.string.unprocessed_help),12f,parent=list)
         notices.forEach { noticeCard(list,it,audit) }
         noticeDialog=AlertDialog.Builder(this).setTitle(tr(R.string.batch_complete_records)).setView(ScrollView(this).apply { addView(list) }).setPositiveButton(tr(R.string.close),null).show()
@@ -236,6 +252,8 @@ class MainActivity : Activity() {
         label(tr(R.string.nav_settings),23f,true)
         label(tr(R.string.settings_intro),14f)
         var selected=retainedForm?.selected ?: settings.provider
+        var selectedTarget=retainedForm?.destination ?: settings.destination
+        var remoteLoaded=retainedForm?.remoteLoaded ?: (selectedTarget==DeliveryTarget.FEISHU)
         val drafts=retainedForm?.providers?.toMutableMap() ?: mutableMapOf()
         var keyError=false
         fun secret(read: ()->String): String = try { read() } catch(_: Exception) { keyError=true; "" }
@@ -251,6 +269,14 @@ class MainActivity : Activity() {
             setSelection(providers.indexOf(selected),false)
         }; content.addView(picker,LinearLayout.LayoutParams(-1,dp(52)))
         val providerHint=label(tr(R.string.provider_active_hint,settings.provider.title),12f)
+        label(tr(R.string.delivery_label),14f,true)
+        val targets=DeliveryTarget.entries.toList()
+        val targetPicker=Spinner(this).apply {
+            contentDescription=tr(R.string.delivery_label)
+            adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,targets.map { targetName(it) })
+            setSelection(targets.indexOf(selectedTarget),false)
+        }; content.addView(targetPicker,LinearLayout.LayoutParams(-1,dp(52)))
+        val targetHint=label(tr(R.string.delivery_saved_hint,targetName(settings.destination)),12f)
         val enabled=Switch(this).apply { text=tr(R.string.cloud_enable); isChecked=retainedForm?.enabled ?: settings.enabled; tag=retainedForm?.consent==true }; content.addView(enabled)
         enabled.setOnCheckedChangeListener { _,on ->
             if(on && !settings.enabled) AlertDialog.Builder(this).setTitle(tr(R.string.cloud_consent_title))
@@ -261,16 +287,25 @@ class MainActivity : Activity() {
         val apiLabel=label(tr(R.string.api_key_label,selected.title),14f,true)
         val api=EditText(this).apply { setText(initial.key); textSize=14f; inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD; setSingleLine(true); maskSecret() }
         content.addView(api,LinearLayout.LayoutParams(-1,-2))
-        val hook=field(tr(R.string.webhook_label),retainedForm?.webhook ?: secret { settings.webhook },true)
-        label(tr(R.string.webhook_help),12f)
+        val remoteArea=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; visibility=if(selectedTarget==DeliveryTarget.FEISHU) View.VISIBLE else View.GONE }
+        content.addView(remoteArea)
+        val hook=field(tr(R.string.webhook_label),if(remoteLoaded) retainedForm?.webhook ?: secret { settings.webhook } else "",true,parent=remoteArea)
+        label(tr(R.string.webhook_help),12f,parent=remoteArea)
+        val localArea=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; visibility=if(selectedTarget==DeliveryTarget.LOCAL) View.VISIBLE else View.GONE }
+        content.addView(localArea)
+        localStatusView=label("",13f,parent=localArea)
+        button(tr(R.string.local_settings_title),localArea) { show(5) }
+        refreshLocalStatus()
         val keyNotice=label(if(keyError) tr(R.string.key_unreadable) else tr(R.string.provider_storage_help),12f)
         button(tr(R.string.save_settings),primary=true) {
             when {
-                enabled.isChecked && (api.text.isBlank() || !Network.validUrl(hook.text.toString().trim(),true)) -> toast(tr(R.string.configure_required))
+                enabled.isChecked && api.text.isBlank() -> toast(tr(R.string.configure_ai_required))
+                enabled.isChecked && selectedTarget==DeliveryTarget.FEISHU && !Network.validUrl(hook.text.toString().trim(),true) -> toast(tr(R.string.configure_required))
                 enabled.isChecked && !settings.enabled && enabled.tag!=true -> toast(tr(R.string.consent_required))
                 else -> try {
-                    settings.saveBasic(selected,api.text.toString().trim(),hook.text.toString().trim(),enabled.isChecked)
+                    settings.saveBasic(selected,api.text.toString().trim(),hook.text.toString().trim(),enabled.isChecked,selectedTarget)
                     providerHint.text=tr(R.string.provider_active_hint,settings.provider.title)
+                    targetHint.text=tr(R.string.delivery_saved_hint,targetName(settings.destination))
                     toast(tr(R.string.basic_saved,selected.title))
                 } catch(_: Exception) { settings.enabled=false; toast(tr(R.string.key_save_failed)) }
             }
@@ -282,15 +317,17 @@ class MainActivity : Activity() {
         label(tr(R.string.advanced_help),12f,parent=advanced)
         val endpoint=field(tr(R.string.endpoint_label),initial.endpoint,parent=advanced)
         val model=field(tr(R.string.model_label),initial.model,parent=advanced)
-        val sign=field(tr(R.string.signing_label),retainedForm?.signingKey ?: secret { settings.signingKey },true,parent=advanced)
-        label(tr(R.string.signing_help),12f,parent=advanced)
+        val signingArea=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; visibility=if(selectedTarget==DeliveryTarget.FEISHU) View.VISIBLE else View.GONE }
+        advanced.addView(signingArea)
+        val sign=field(tr(R.string.signing_label),if(remoteLoaded) retainedForm?.signingKey ?: secret { settings.signingKey } else "",true,parent=signingArea)
+        label(tr(R.string.signing_help),12f,parent=signingArea)
         val prompt=field(tr(R.string.prompt_label),retainedForm?.prompt ?: settings.prompt,multiline=true,parent=advanced)
         button(tr(R.string.save_advanced),advanced) {
             when {
                 !Network.validUrl(endpoint.text.toString().trim()) -> toast(tr(R.string.endpoint_invalid))
                 model.text.isBlank() -> toast(tr(R.string.error_model_required))
                 else -> try {
-                    settings.saveAdvanced(selected,endpoint.text.toString().trim(),model.text.toString().trim(),sign.text.toString().trim(),prompt.text.toString())
+                    settings.saveAdvanced(selected,endpoint.text.toString().trim(),model.text.toString().trim(),sign.text.toString().trim(),prompt.text.toString(),selectedTarget)
                     toast(tr(R.string.advanced_saved,selected.title,settings.provider.title))
                 } catch(_: Exception) { toast(tr(R.string.advanced_failed)) }
             }
@@ -310,10 +347,26 @@ class MainActivity : Activity() {
                 if(keyError) keyNotice.text=tr(R.string.provider_key_unreadable)
             }
         }
+        targetPicker.onItemSelectedListener=object: AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            override fun onItemSelected(parent: AdapterView<*>?,view: View?,position: Int,id: Long) {
+                if(position!=targetPicker.selectedItemPosition || targets[position]==selectedTarget) return
+                selectedTarget=targets[position]
+                if(selectedTarget==DeliveryTarget.FEISHU && !remoteLoaded) {
+                    hook.setText(secret { settings.webhook }); sign.setText(secret { settings.signingKey }); remoteLoaded=true
+                    if(keyError) keyNotice.text=tr(R.string.key_unreadable)
+                }
+                remoteArea.visibility=if(selectedTarget==DeliveryTarget.FEISHU) View.VISIBLE else View.GONE
+                signingArea.visibility=remoteArea.visibility
+                localArea.visibility=if(selectedTarget==DeliveryTarget.LOCAL) View.VISIBLE else View.GONE
+                targetHint.text=tr(R.string.delivery_form_hint,targetName(selectedTarget),targetName(settings.destination))
+                refreshLocalStatus()
+            }
+        }
         captureForm={
             val saved=drafts.toMutableMap()
             saved[selected]=AiConfig(selected,api.text.toString(),endpoint.text.toString(),model.text.toString(),prompt.text.toString(),settings.language)
-            SettingsDraft(selected,saved,hook.text.toString(),sign.text.toString(),prompt.text.toString(),enabled.isChecked,enabled.tag==true,advanced.visibility==View.VISIBLE)
+            SettingsDraft(selected,saved,hook.text.toString(),sign.text.toString(),prompt.text.toString(),enabled.isChecked,enabled.tag==true,advanced.visibility==View.VISIBLE,selectedTarget,remoteLoaded)
         }
         languagePicker.onItemSelectedListener=object: AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -410,6 +463,52 @@ class MainActivity : Activity() {
             if(on) AlertDialog.Builder(this).setTitle(tr(R.string.recents_confirm_title)).setMessage(tr(R.string.recents_confirm_text))
                 .setNegativeButton(tr(R.string.cancel)) { _,_ -> hidden.isChecked=false }.setPositiveButton(tr(R.string.hide)) { _,_ -> apply(true) }.setOnCancelListener { hidden.isChecked=false }.show()
             else apply(false)
+        }
+    }
+    private fun targetName(target: DeliveryTarget) = tr(if(target==DeliveryTarget.LOCAL) R.string.delivery_local else R.string.delivery_feishu)
+    private fun refreshLocalStatus() {
+        localStatusView?.text=tr(when(LocalNotifier.status(this)) {
+            LocalNoticeStatus.READY -> R.string.local_status_ready
+            LocalNoticeStatus.PERMISSION_MISSING -> R.string.local_status_permission
+            LocalNoticeStatus.APP_BLOCKED -> R.string.local_status_app
+            LocalNoticeStatus.CHANNEL_BLOCKED -> R.string.local_status_channel
+        })
+    }
+    private fun localNotificationPage() {
+        label(tr(R.string.local_settings_title),23f,true)
+        localStatusView=label("",14f)
+        refreshLocalStatus()
+        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
+            button(tr(R.string.local_permission_button),primary=true) { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),701) }
+        button(tr(R.string.local_app_settings)) { openSystem(LocalNotifier.appSettings(this)) }
+        button(tr(R.string.local_channel_settings)) { openSystem(LocalNotifier.channelSettings(this)) }
+        button(tr(R.string.local_test_button)) {
+            try { LocalNotifier.sendTest(this); toast(tr(R.string.local_test_sent)) }
+            catch(e: AppFailure) { toast(LocaleHelper.renderError(this,e.code.encoded(e.number))) }
+            catch(_: Exception) { toast(tr(R.string.error_local_send_failed)) }
+        }
+        val dnd=card(); label(tr(R.string.local_dnd_title),17f,true,dnd)
+        label(tr(R.string.local_dnd_help,tr(R.string.app_name)),14f,parent=dnd)
+        button(tr(R.string.local_dnd_settings),dnd) {
+            if(!LocalNotifier.openDndSettings { startActivity(it) }) toast(tr(R.string.local_dnd_missing))
+        }
+        button(tr(R.string.back_settings)) { show(2) }
+    }
+    override fun onRequestPermissionsResult(requestCode: Int,permissions: Array<out String>,grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+        if(requestCode==701) { if(page==5) show(5) else refreshLocalStatus() }
+    }
+    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); handleNotificationIntent(intent) }
+    private fun handleNotificationIntent(incoming: Intent?) {
+        val id=LocalNotifier.batchFromIntent(incoming) ?: return
+        setIntent(Intent(this,MainActivity::class.java))
+        noticeDialog?.dismiss(); show(1)
+        Store(this).use { db ->
+            val batch=db.get(id)
+            if(batch==null) toast(tr(R.string.batch_missing)) else {
+                val waiting=batch.state in setOf("QUEUED","FAILED")
+                showNotices(if(waiting) db.visibleNotices(id) else db.notices(id),!waiting,batch)
+            }
         }
     }
     private fun openSystem(intent: Intent) {

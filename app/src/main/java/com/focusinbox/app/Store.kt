@@ -6,8 +6,8 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
-data class Batch(val id: Long, val state: String, val created: Long, val message: String, val error: String, val ids: String)
-class Store(context: Context, databaseName: String = "inbox.db", private val legacyExcluded: Set<String> = Settings(context).excluded) : SQLiteOpenHelper(context, databaseName, null, 2) {
+data class Batch(val id: Long, val state: String, val created: Long, val message: String, val error: String, val ids: String,val target: DeliveryTarget=DeliveryTarget.FEISHU)
+class Store(context: Context, databaseName: String = "inbox.db", private val legacyExcluded: Set<String> = Settings(context).excluded,private val targetProvider: ()->DeliveryTarget = { Settings(context).destination }) : SQLiteOpenHelper(context, databaseName, null, 3) {
     companion object { private val lock = Any() }
     private val appContext=context.applicationContext
     private val columns="id,nkey,pkg,app,title,body,at,kind,hidden,summary,sourceTime,ongoing,channelId"
@@ -16,7 +16,7 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         db.execSQL("CREATE TABLE notices(id INTEGER PRIMARY KEY AUTOINCREMENT, nkey TEXT NOT NULL, pkg TEXT NOT NULL, app TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, at INTEGER NOT NULL, kind TEXT NOT NULL, hidden INTEGER NOT NULL, summary INTEGER NOT NULL, sourceTime INTEGER NOT NULL DEFAULT 0, ongoing INTEGER NOT NULL DEFAULT 0, channelId TEXT NOT NULL DEFAULT '', fingerprint TEXT NOT NULL, batch INTEGER)")
         db.execSQL("CREATE INDEX notices_batch ON notices(batch)")
         db.execSQL("CREATE TABLE latest(nkey TEXT PRIMARY KEY, fingerprint TEXT NOT NULL)")
-        db.execSQL("CREATE TABLE batches(id INTEGER PRIMARY KEY AUTOINCREMENT, state TEXT NOT NULL, created INTEGER NOT NULL, message TEXT NOT NULL DEFAULT '', error TEXT NOT NULL DEFAULT '', ids TEXT NOT NULL DEFAULT '')")
+        db.execSQL("CREATE TABLE batches(id INTEGER PRIMARY KEY AUTOINCREMENT, state TEXT NOT NULL, created INTEGER NOT NULL, message TEXT NOT NULL DEFAULT '', error TEXT NOT NULL DEFAULT '', ids TEXT NOT NULL DEFAULT '', target TEXT NOT NULL DEFAULT 'FEISHU')")
         db.execSQL("CREATE TABLE timer(id INTEGER PRIMARY KEY CHECK(id=1), state TEXT NOT NULL, endAt INTEGER NOT NULL, remaining INTEGER NOT NULL, token INTEGER NOT NULL)")
         db.execSQL("INSERT INTO timer VALUES(1,'IDLE',0,0,0)")
         createFilters(db)
@@ -26,11 +26,13 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         db.execSQL("CREATE TABLE meta(name TEXT PRIMARY KEY, value TEXT NOT NULL)")
     }
     override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
-        if(old==1 && new==2) {
+        check(old in 1..2 && new==3) { "Unsupported database migration" }
+        if(old<2) {
             db.execSQL("ALTER TABLE notices ADD COLUMN ongoing INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE notices ADD COLUMN channelId TEXT NOT NULL DEFAULT ''")
             createFilters(db)
-        } else error("Unsupported database migration")
+        }
+        db.execSQL("ALTER TABLE batches ADD COLUMN target TEXT NOT NULL DEFAULT 'FEISHU'")
     }
     override fun onOpen(db: SQLiteDatabase) {
         super.onOpen(db)
@@ -92,9 +94,9 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
             }
         } finally { db.endTransaction() }
     }
-    private fun batch(c: Cursor) = Batch(c.getLong(0),c.getString(1),c.getLong(2),c.getString(3),c.getString(4),c.getString(5))
-    fun batches(): List<Batch> = readableDatabase.rawQuery("SELECT id,state,created,message,error,ids FROM batches ORDER BY id DESC LIMIT 80",null).use { c -> buildList { while(c.moveToNext()) add(batch(c)) } }
-    fun get(id: Long): Batch? = readableDatabase.rawQuery("SELECT id,state,created,message,error,ids FROM batches WHERE id=?",arrayOf(id.toString())).use { if(it.moveToFirst()) batch(it) else null }
+    private fun batch(c: Cursor) = Batch(c.getLong(0),c.getString(1),c.getLong(2),c.getString(3),c.getString(4),c.getString(5),DeliveryTarget.fromStored(c.getString(6)))
+    fun batches(): List<Batch> = readableDatabase.rawQuery("SELECT id,state,created,message,error,ids,target FROM batches ORDER BY id DESC LIMIT 80",null).use { c -> buildList { while(c.moveToNext()) add(batch(c)) } }
+    fun get(id: Long): Batch? = readableDatabase.rawQuery("SELECT id,state,created,message,error,ids,target FROM batches WHERE id=?",arrayOf(id.toString())).use { if(it.moveToFirst()) batch(it) else null }
     /** The transaction fixes a snapshot. Later arrivals stay unassigned for the next batch. */
     fun createBatch(): Long? = synchronized(lock) {
         val db=writableDatabase; db.beginTransaction()
@@ -103,7 +105,7 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
             if(active!=null) { db.setTransactionSuccessful(); return@synchronized active }
             val has=db.rawQuery("SELECT 1 FROM notices WHERE batch IS NULL AND $visible LIMIT 1",null).use { it.moveToFirst() }
             if(!has) { db.setTransactionSuccessful(); return@synchronized null }
-            val id=db.insertOrThrow("batches",null,ContentValues().apply { put("state","QUEUED"); put("created",System.currentTimeMillis()) })
+            val id=db.insertOrThrow("batches",null,ContentValues().apply { put("state","QUEUED"); put("created",System.currentTimeMillis()); put("target",targetProvider().name) })
             db.execSQL("UPDATE notices SET batch=? WHERE batch IS NULL AND $visible",arrayOf(id))
             db.setTransactionSuccessful(); id
         } finally { db.endTransaction() }
@@ -113,13 +115,16 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         val v=ContentValues().apply { put("state",to); put("error",error); message?.let { put("message",it) }; ids?.let { put("ids",it) } }
         writableDatabase.update("batches",v,"id=? AND state=?",arrayOf(id.toString(),from))==1
     }
-    fun retry(id: Long): Boolean = synchronized(lock) {
-        val b=get(id)?:return@synchronized false
-        when(b.state) { "FAILED" -> transition(id,"FAILED","QUEUED"); "UNCERTAIN" -> transition(id,"UNCERTAIN","READY"); "SEND_FAILED" -> transition(id,"SEND_FAILED","READY"); else -> false }
+    fun retry(id: Long,target: DeliveryTarget?=null): Boolean = synchronized(lock) {
+        val b=get(id) ?: return@synchronized false
+        val next=when(b.state) { "FAILED" -> "QUEUED"; "SEND_FAILED","UNCERTAIN" -> "READY"; else -> return@synchronized false }
+        val values=ContentValues().apply { put("state",next); put("error",""); if(target!=null) put("target",target.name) }
+        writableDatabase.update("batches",values,"id=? AND state=?",arrayOf(id.toString(),b.state))==1
     }
     fun recover() = synchronized(lock) {
         writableDatabase.execSQL("UPDATE batches SET state='FAILED', error='@error:ANALYSIS_INTERRUPTED' WHERE state='ANALYZING'")
-        writableDatabase.execSQL("UPDATE batches SET state='UNCERTAIN', error='@error:SEND_UNCERTAIN' WHERE state='SENDING'")
+        writableDatabase.execSQL("UPDATE batches SET state='UNCERTAIN', error='@error:SEND_UNCERTAIN' WHERE state='SENDING' AND target='FEISHU'")
+        writableDatabase.execSQL("UPDATE batches SET state='SEND_FAILED', error='@error:LOCAL_INTERRUPTED' WHERE state='SENDING' AND target='LOCAL'")
     }
     fun pendingCount(): Long = readableDatabase.rawQuery("SELECT COUNT(*) FROM notices WHERE batch IS NULL AND $visible",null).use { it.moveToFirst(); it.getLong(0) }
     fun apps(): List<Pair<String,String>> = readableDatabase.rawQuery("SELECT pkg,MAX(app) FROM notices GROUP BY pkg ORDER BY MAX(app)",null).use { c -> buildList { while(c.moveToNext()) add(c.getString(0) to c.getString(1)) } }

@@ -12,7 +12,7 @@ enum class Provider(val id: String,val title: String,val endpoint: String,val mo
     companion object { fun fromId(id: String): Provider = entries.firstOrNull { it.id==id } ?: DEEPSEEK }
 }
 class AiConfig(val provider: Provider,val key: String,val endpoint: String,val model: String,val prompt: String,val language: UiLanguage=UiLanguage.CHINESE)
-class RunConfig(val enabled: Boolean,val ai: AiConfig,val webhook: String,val signingKey: String)
+class RunConfig(val enabled: Boolean,val ai: AiConfig,val webhook: String,val signingKey: String,val target: DeliveryTarget=DeliveryTarget.FEISHU)
 class AiRequest(val url: String,val headers: Map<String,String>,val body: String)
 object AiAdapter {
     const val ANTHROPIC_VERSION="2026-10-21"
