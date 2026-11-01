@@ -26,6 +26,11 @@ object LocaleHelper {
         configuration.setLocales(LocaleList(Locale.forLanguageTag(selected.tag)))
         return base.createConfigurationContext(configuration)
     }
+    fun resourcesFor(context: Context,language: UiLanguage,configuration: Configuration=context.resources.configuration): android.content.res.Resources {
+        val selected=Configuration(configuration)
+        selected.setLocales(LocaleList(Locale.forLanguageTag(language.tag)))
+        return context.createConfigurationContext(selected).resources
+    }
     fun initialize(context: Context) {
         val language=current(context)
         if(Build.VERSION.SDK_INT>=33) {
@@ -37,7 +42,7 @@ object LocaleHelper {
         Settings(activity).language=language
         if(Build.VERSION.SDK_INT>=33) {
             activity.getSystemService(LocaleManager::class.java).applicationLocales=LocaleList.forLanguageTags(language.tag)
-        } else activity.recreate()
+        }
     }
     fun renderError(context: Context,persisted: String): String {
         if(!persisted.startsWith("@error:")) return if(current(context)==UiLanguage.ENGLISH)

@@ -1,3 +1,31 @@
+# 1.9 语言菜单与切换修复
+
+日期：2026-11-01。版本：1.9（versionCode 10）。GPT-6.1 Sol 实现，主代理审查与验收。
+
+## 修改
+
+- 语言、AI 提供商、提醒方式统一为薄荷绿下拉菜单，分别绘制收起行和展开行。
+- 选中、按压、焦点及弹窗主题色均显式指定，弹窗与列表按同一 12dp 圆角裁剪。
+- 语言切换保留当前 Activity 和窗口，刷新实际中英文资源、标题、导航及页面内容；继续同步 Android 的每应用语言设置。
+- 保留当前页面、滚动位置及未保存的设置草稿；清理旧弹窗、旧菜单回调和导航引用。
+
+## 验证
+
+- assembleDebug、testDebugUnitTest、lintDebug、connectedDebugAndroidTest 均通过。
+- 61 项单元测试、82 项 Android 设备测试，共 143 项通过，0 失败、0 跳过。
+- 新回归覆盖菜单状态、窗口不重建、完整草稿/页面/滚动保留、旧回调忽略、系统语言更新与时长/数字输入弹窗关闭。
+- Lint：0 错误、24 警告。新增一项为仅通过代码构造的 MintSpinner 缺少 XML 工具构造函数提示。
+- 在 Android 15 API 35 模拟器实际按压未选中的 English 行，截图为绿色；三类下拉菜单圆角一致。
+- 连续 EN→ZH→EN→ZH 的 12 秒录屏共 91 帧，未发现黑帧；逐帧采样最大暗色占比约 0.093%。
+- 系统语言 ZH→EN→ZH 前后的窗口标识相同；打开的旧菜单正确关闭，新语言文字正常显示。
+- 320dp 窄屏、1.5 倍字体下两种语言可选，菜单文字与圆角正常。已恢复默认显示设置。
+- APK 签名与既有版本一致，可用于覆盖升级。git diff --check 通过。
+- 本轮未在用户的实体手机上测试。原生模拟器修复前没有复现厂商紫色或黑屏；修复后验证了显式绿色样式与窗口不重建。
+
+[Android 配置变更说明](https://developer.android.com/topic/architecture/views/resources/runtime-changes-views) · [应用语言设置](https://developer.android.com/guide/topics/resources/app-languages)
+
+---
+
 # StillBrief 1.8 验收记录
 
 日期：2026-11-01。版本：1.8（versionCode 9）。GPT-6.1 Sol实现，主代理审查及界面验收。

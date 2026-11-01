@@ -1,6 +1,10 @@
 package com.focusinbox.app
 
 import android.app.Activity
+import android.app.Dialog
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.content.res.AssetManager
 import android.Manifest
 import android.content.pm.PackageManager
 import android.app.AlertDialog
@@ -34,6 +38,15 @@ class MainActivity : Activity() {
     private val handler=Handler(Looper.getMainLooper())
     private var page=0
     private var resumed=false
+    private var uiResources: Resources?=null
+    private var appliedLanguage: UiLanguage?=null
+    private var uiGeneration=0
+    private var pageScroll: ScrollView?=null
+    private val scrollPositions=mutableMapOf<Int,Int>()
+    private val settingsPickers=mutableListOf<Spinner>()
+    private val dialogs=mutableSetOf<Dialog>()
+    override fun getResources(): Resources = uiResources ?: super.getResources()
+    override fun getAssets(): AssetManager = uiResources?.assets ?: super.getAssets()
     private lateinit var pageHost: FrameLayout
     private lateinit var pageTransition: PageTransition
     private val navigationButtons=mutableListOf<Button>()
@@ -50,13 +63,15 @@ class MainActivity : Activity() {
     private var captureForm: (() -> SettingsDraft)?=null
     private fun tr(id: Int,vararg args: Any): String = getString(id,*args)
     override fun attachBaseContext(base: Context) { super.attachBaseContext(LocaleHelper.wrap(base)) }
-    override fun onRetainNonConfigurationInstance(): Any = RetainedScreen(page,if(page==2) captureForm?.invoke() ?: savedForm else savedForm)
+    override fun onRetainNonConfigurationInstance(): Any { rememberScroll(); return RetainedScreen(page,if(page==2) captureForm?.invoke() ?: savedForm else savedForm,scrollPositions.toMap()) }
     private val tick=object: Runnable { override fun run() { if(page==0) update(); handler.postDelayed(this,1000) } }
     private val ink=Color.rgb(28,53,49)
     private val green=Color.rgb(35,121,111)
     private fun dp(n: Int)=(n*resources.displayMetrics.density).toInt()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); settings=Settings(this)
+        appliedLanguage=LocaleHelper.current(this)
+        uiResources=LocaleHelper.resourcesFor(baseContext,appliedLanguage!!)
         window.decorView.setOnApplyWindowInsetsListener { v,insets ->
             if(android.os.Build.VERSION.SDK_INT>=30) { val bars=insets.getInsets(WindowInsets.Type.systemBars()); v.setPadding(bars.left,bars.top,bars.right,bars.bottom) }
             else { @Suppress("DEPRECATION") v.setPadding(insets.systemWindowInsetLeft,insets.systemWindowInsetTop,insets.systemWindowInsetRight,insets.systemWindowInsetBottom) }
@@ -64,6 +79,7 @@ class MainActivity : Activity() {
         }
         val retained=lastNonConfigurationInstance as? RetainedScreen
         savedForm=retained?.draft
+        scrollPositions.putAll(retained?.scrollPositions ?: emptyMap())
         createChrome()
         show(retained?.page ?: 0)
         handleNotificationIntent(intent)
@@ -74,10 +90,10 @@ class MainActivity : Activity() {
         getSystemService(ActivityManager::class.java).appTasks.forEach { it.setExcludeFromRecents(settings.hideRecents) }
         if(page==4 || page==5) show(page)
         if(page==2) refreshLocalStatus()
-        handler.post(tick)
+        handler.removeCallbacks(tick); handler.post(tick)
     }
     override fun onPause() { resumed=false; handler.removeCallbacks(tick); pageTransition.finish(); super.onPause() }
-    override fun onDestroy() { handler.removeCallbacks(tick); pageTransition.clear(); durationSheet?.dismiss(); durationSheet=null; noticeDialog?.dismiss(); captureForm=null; super.onDestroy() }
+    override fun onDestroy() { handler.removeCallbacks(tick); pageTransition.clear(); clearPickers(); dismissDialogs(); captureForm=null; super.onDestroy() }
     private fun label(text: String,size: Float=15f,bold: Boolean=false,parent: LinearLayout=content): TextView = TextView(this).also {
         it.text=text; it.textSize=size; it.setTextColor(ink); it.setPadding(0,dp(6),0,dp(6)); if(bold) it.setTypeface(null,Typeface.BOLD); parent.addView(it)
     }
@@ -94,6 +110,7 @@ class MainActivity : Activity() {
         content.addView(it,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(14); bottomMargin=dp(6) })
     }
     private fun createChrome() {
+        navigationButtons.clear()
         val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(245,247,243)) }
         val top=LinearLayout(this).apply { id=R.id.page_header; setPadding(dp(20),dp(16),dp(20),0); orientation=LinearLayout.VERTICAL }
         label(tr(R.string.app_name),28f,true,top); label(tr(R.string.tagline),13f,parent=top); root.addView(top)
@@ -114,10 +131,19 @@ class MainActivity : Activity() {
     }
     private fun show(which: Int) {
         val previous=page
+        rememberScroll(); clearPickers(); uiGeneration++
         if(page==2) savedForm=captureForm?.invoke() ?: savedForm
         captureForm=null; localStatusView=null
         page=which; clock=null; status=null; pending=null; startButton=null; pauseButton=null; restButton=null
-        val scroll=ScrollView(this)
+        val scroll=ScrollView(this); pageScroll=scroll
+        val generation=uiGeneration
+        val restoreY=scrollPositions[which] ?: 0
+        if(restoreY>0) scroll.addOnLayoutChangeListener(object: View.OnLayoutChangeListener {
+            override fun onLayoutChange(view: View,l: Int,t: Int,r: Int,b: Int,oldL: Int,oldT: Int,oldR: Int,oldB: Int) {
+                scroll.removeOnLayoutChangeListener(this)
+                if(generation==uiGeneration && pageScroll===scroll) scroll.scrollTo(0,restoreY)
+            }
+        })
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(20),dp(4),dp(20),dp(24)) }
         scroll.addView(content)
         navigationButtons.forEachIndexed { index,button ->
@@ -153,7 +179,7 @@ class MainActivity : Activity() {
     private fun editDuration() {
         val t=Store(this).use { it.timer() }
         if(t.state in setOf("RUNNING","PAUSED")) {
-            AlertDialog.Builder(this).setTitle(tr(R.string.duration_title))
+            alert().setTitle(tr(R.string.duration_title))
                 .setItems(arrayOf(tr(R.string.duration_next_only),tr(R.string.duration_current,tr(if(t.state=="RUNNING") R.string.running_word else R.string.paused_word)))) { _,which -> durationPicker(which==1) }.show()
         } else durationPicker(false)
     }
@@ -213,7 +239,7 @@ class MainActivity : Activity() {
                     val changing=requested!=b.target
                     val reason=if(b.state=="UNCERTAIN") tr(R.string.retry_uncertain_target,targetName(b.target)) else if(b.state=="SEND_FAILED") tr(R.string.retry_send) else tr(R.string.retry_analysis)
                     val route=if(changing) tr(R.string.retry_change_target,targetName(requested),targetName(b.target)) else tr(R.string.retry_same_target,targetName(b.target))
-                    AlertDialog.Builder(this).setTitle(tr(R.string.retry_title)).setMessage(reason+"\n\n"+route)
+                    alert().setTitle(tr(R.string.retry_title)).setMessage(reason+"\n\n"+route)
                         .setNegativeButton(tr(R.string.cancel),null).setPositiveButton(tr(R.string.retry_confirm)) { _,_ -> BatchEngine.retry(this,b.id,if(changing) requested else null); show(1) }.show()
                 }
             }
@@ -243,12 +269,12 @@ class MainActivity : Activity() {
         }
         label(if(audit) tr(R.string.audit_help) else tr(R.string.unprocessed_help),12f,parent=list)
         notices.forEach { noticeCard(list,it,audit) }
-        noticeDialog=AlertDialog.Builder(this).setTitle(tr(R.string.batch_complete_records)).setView(ScrollView(this).apply { addView(list) }).setPositiveButton(tr(R.string.close),null).show()
+        noticeDialog=alert().setTitle(tr(R.string.batch_complete_records)).setView(ScrollView(this).apply { addView(list) }).setPositiveButton(tr(R.string.close),null).show()
     }
     private fun filterNotice(n: Notice) {
         val choices=mutableListOf(tr(R.string.filter_body_option,n.app),tr(R.string.filter_app_option,n.app))
         if(n.channelId.isNotBlank()) choices.add(tr(R.string.filter_channel_option,n.app,n.channelId))
-        AlertDialog.Builder(this).setTitle(tr(R.string.filter_scope_title)).setItems(choices.toTypedArray()) { _,which ->
+        alert().setTitle(tr(R.string.filter_scope_title)).setItems(choices.toTypedArray()) { _,which ->
             val kind=when(which) { 0 -> "body"; 1 -> "app"; else -> "channel" }
             val value=when(kind) { "body" -> n.body; "channel" -> n.channelId; else -> "" }
             val scope=when(kind) {
@@ -256,7 +282,7 @@ class MainActivity : Activity() {
                 "channel" -> tr(R.string.filter_channel_scope,n.app,n.channelId)
                 else -> tr(R.string.filter_app_scope,n.app)
             }
-            AlertDialog.Builder(this).setTitle(tr(R.string.filter_save_title)).setMessage(scope+"\n\n"+tr(R.string.filter_effect_help))
+            alert().setTitle(tr(R.string.filter_save_title)).setMessage(scope+"\n\n"+tr(R.string.filter_effect_help))
                 .setNegativeButton(tr(R.string.cancel),null).setPositiveButton(tr(R.string.filter_save)) { _,_ ->
                     Store(this).use { it.addFilter(kind,n.pkg,n.app,value) }; noticeDialog?.dismiss(); noticeDialog=null; toast(tr(R.string.filter_saved)); show(1)
                 }.show()
@@ -267,13 +293,12 @@ class MainActivity : Activity() {
         return EditText(this).also { it.setText(value); it.textSize=14f; it.inputType=if(secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD else if(multiline) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE else InputType.TYPE_CLASS_TEXT; it.setSingleLine(!multiline); if(secret) it.maskSecret(); parent.addView(it,LinearLayout.LayoutParams(-1,-2)) }
     }
     private fun preferences() {
+        val generation=uiGeneration
         val languages=UiLanguage.entries.toList()
         label(tr(R.string.language_title),14f,true)
-        val languagePicker=Spinner(this).apply {
-            contentDescription=tr(R.string.language_title)
-            adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,listOf(tr(R.string.language_chinese),tr(R.string.language_english)))
-            setSelection(languages.indexOf(settings.language),false)
-        }; content.addView(languagePicker,LinearLayout.LayoutParams(-1,-2).apply { height=dp(52) })
+        val languagePicker=MintSpinner(this,listOf(tr(R.string.language_chinese),tr(R.string.language_english)),languages.indexOf(settings.language),tr(R.string.language_title))
+        settingsPickers.add(languagePicker)
+        content.addView(languagePicker,LinearLayout.LayoutParams(-1,-2))
         val retainedForm=savedForm
         label(tr(R.string.nav_settings),23f,true)
         label(tr(R.string.settings_intro),14f)
@@ -289,23 +314,17 @@ class MainActivity : Activity() {
         val initial=drafts.getOrPut(selected) { load(selected) }
         label(tr(R.string.provider_label),14f,true)
         val providers=Provider.entries.toList()
-        val picker=Spinner(this).apply {
-            contentDescription=tr(R.string.provider_label)
-            adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,providers.map { it.title })
-            setSelection(providers.indexOf(selected),false)
-        }; content.addView(picker,LinearLayout.LayoutParams(-1,dp(52)))
+        val picker=MintSpinner(this,providers.map { it.title },providers.indexOf(selected),tr(R.string.provider_label))
+        settingsPickers.add(picker); content.addView(picker,LinearLayout.LayoutParams(-1,-2))
         val providerHint=label(tr(R.string.provider_active_hint,settings.provider.title),12f)
         label(tr(R.string.delivery_label),14f,true)
         val targets=DeliveryTarget.entries.toList()
-        val targetPicker=Spinner(this).apply {
-            contentDescription=tr(R.string.delivery_label)
-            adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,targets.map { targetName(it) })
-            setSelection(targets.indexOf(selectedTarget),false)
-        }; content.addView(targetPicker,LinearLayout.LayoutParams(-1,dp(52)))
+        val targetPicker=MintSpinner(this,targets.map { targetName(it) },targets.indexOf(selectedTarget),tr(R.string.delivery_label))
+        settingsPickers.add(targetPicker); content.addView(targetPicker,LinearLayout.LayoutParams(-1,-2))
         val targetHint=label(tr(R.string.delivery_saved_hint,targetName(settings.destination)),12f)
         val enabled=Switch(this).apply { text=tr(R.string.cloud_enable); isChecked=retainedForm?.enabled ?: settings.enabled; tag=retainedForm?.consent==true }; content.addView(enabled)
         enabled.setOnCheckedChangeListener { _,on ->
-            if(on && !settings.enabled) AlertDialog.Builder(this).setTitle(tr(R.string.cloud_consent_title))
+            if(on && !settings.enabled) alert().setTitle(tr(R.string.cloud_consent_title))
                 .setMessage(tr(R.string.cloud_consent_text))
                 .setPositiveButton(tr(R.string.cloud_consent_yes)) { _,_ -> enabled.tag=true }
                 .setNegativeButton(tr(R.string.cancel)) { _,_ -> enabled.isChecked=false }.setOnCancelListener { enabled.isChecked=false }.show()
@@ -362,7 +381,7 @@ class MainActivity : Activity() {
         picker.onItemSelectedListener=object: AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
             override fun onItemSelected(parent: AdapterView<*>?,view: View?,position: Int,id: Long) {
-                if(position!=picker.selectedItemPosition) return
+                if(generation!=uiGeneration || position!=picker.selectedItemPosition) return
                 val next=providers[position]
                 if(next==selected) return
                 drafts[selected]=AiConfig(selected,api.text.toString(),endpoint.text.toString(),model.text.toString(),prompt.text.toString())
@@ -376,7 +395,7 @@ class MainActivity : Activity() {
         targetPicker.onItemSelectedListener=object: AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
             override fun onItemSelected(parent: AdapterView<*>?,view: View?,position: Int,id: Long) {
-                if(position!=targetPicker.selectedItemPosition || targets[position]==selectedTarget) return
+                if(generation!=uiGeneration || position!=targetPicker.selectedItemPosition || targets[position]==selectedTarget) return
                 selectedTarget=targets[position]
                 if(selectedTarget==DeliveryTarget.FEISHU && !remoteLoaded) {
                     hook.setText(secret { settings.webhook }); sign.setText(secret { settings.signingKey }); remoteLoaded=true
@@ -397,9 +416,10 @@ class MainActivity : Activity() {
         languagePicker.onItemSelectedListener=object: AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
             override fun onItemSelected(parent: AdapterView<*>?,view: View?,position: Int,id: Long) {
-                if(position!=languagePicker.selectedItemPosition || languages[position]==settings.language) return
+                if(generation!=uiGeneration || position!=languagePicker.selectedItemPosition || languages[position]==settings.language) return
                 savedForm=captureForm?.invoke()
                 LocaleHelper.change(this@MainActivity,languages[position])
+                refreshLanguage(languages[position])
             }
         }
         val management=card(); label(tr(R.string.management_title),17f,true,management)
@@ -407,10 +427,10 @@ class MainActivity : Activity() {
         button(tr(R.string.filters_title),management) { show(3) }
         label(tr(R.string.retention_help),12f)
         button(tr(R.string.delete_records)) {
-            AlertDialog.Builder(this).setTitle(tr(R.string.delete_records_title)).setMessage(tr(R.string.delete_records_help))
+            alert().setTitle(tr(R.string.delete_records_title)).setMessage(tr(R.string.delete_records_help))
                 .setNegativeButton(tr(R.string.cancel),null).setPositiveButton(tr(R.string.delete)) { _,_ -> toast(if(Store(this).use { it.clear() }) tr(R.string.records_deleted) else tr(R.string.records_busy)) }.show()
         }
-        button(tr(R.string.delete_keys)) { AlertDialog.Builder(this).setTitle(tr(R.string.delete_keys_title)).setMessage(tr(R.string.delete_keys_help))
+        button(tr(R.string.delete_keys)) { alert().setTitle(tr(R.string.delete_keys_title)).setMessage(tr(R.string.delete_keys_help))
             .setNegativeButton(tr(R.string.cancel),null).setPositiveButton(tr(R.string.delete)) { _,_ -> settings.clearSecrets(); captureForm=null; savedForm=null; show(2) }.show() }
         recentTaskPreference()
     }
@@ -422,8 +442,8 @@ class MainActivity : Activity() {
         button(tr(R.string.exclude_choose_app)) {
             val apps=Store(this).use { it.apps() }
             if(apps.isEmpty()) toast(tr(R.string.no_apps))
-            else AlertDialog.Builder(this).setTitle(tr(R.string.choose_app_title)).setItems(apps.map { it.second }.toTypedArray()) { _,i ->
-                AlertDialog.Builder(this).setTitle(tr(R.string.exclude_app_title,apps[i].second)).setMessage(tr(R.string.exclude_app_help))
+            else alert().setTitle(tr(R.string.choose_app_title)).setItems(apps.map { it.second }.toTypedArray()) { _,i ->
+                alert().setTitle(tr(R.string.exclude_app_title,apps[i].second)).setMessage(tr(R.string.exclude_app_help))
                     .setNegativeButton(tr(R.string.cancel),null).setPositiveButton(tr(R.string.exclude)) { _,_ -> Store(this).use { it.addFilter("app",apps[i].first,apps[i].second) }; show(3) }.show()
             }.show()
         }
@@ -486,7 +506,7 @@ class MainActivity : Activity() {
         val hidden=Switch(this).apply { text=tr(R.string.recents_hide); isChecked=settings.hideRecents }; recents.addView(hidden)
         hidden.setOnCheckedChangeListener { _,on ->
             fun apply(value: Boolean) { settings.hideRecents=value; am.appTasks.forEach { it.setExcludeFromRecents(value) } }
-            if(on) AlertDialog.Builder(this).setTitle(tr(R.string.recents_confirm_title)).setMessage(tr(R.string.recents_confirm_text))
+            if(on) alert().setTitle(tr(R.string.recents_confirm_title)).setMessage(tr(R.string.recents_confirm_text))
                 .setNegativeButton(tr(R.string.cancel)) { _,_ -> hidden.isChecked=false }.setPositiveButton(tr(R.string.hide)) { _,_ -> apply(true) }.setOnCancelListener { hidden.isChecked=false }.show()
             else apply(false)
         }
@@ -536,6 +556,31 @@ class MainActivity : Activity() {
                 showNotices(if(waiting) db.visibleNotices(id) else db.notices(id),!waiting,batch)
             }
         }
+    }
+    private fun rememberScroll() { pageScroll?.let { scrollPositions[page]=it.scrollY } }
+    private fun clearPickers() { settingsPickers.forEach { it.onItemSelectedListener=null }; settingsPickers.clear() }
+    private fun dismissDialogs() {
+        durationSheet?.dismiss(); durationSheet=null
+        dialogs.toList().forEach { it.dismiss() }; dialogs.clear(); noticeDialog=null
+    }
+    private fun alert(): AlertDialog.Builder = object: AlertDialog.Builder(this) {
+        override fun create(): AlertDialog = super.create().also { dialog ->
+            dialogs.add(dialog); dialog.setOnDismissListener { dialogs.remove(dialog) }
+        }
+    }
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        refreshLanguage(LocaleHelper.current(this),newConfig)
+    }
+    private fun refreshLanguage(language: UiLanguage,configuration: Configuration=baseContext.resources.configuration) {
+        uiResources=LocaleHelper.resourcesFor(baseContext,language,configuration)
+        if(appliedLanguage==language) return
+        appliedLanguage=language
+        rememberScroll()
+        if(page==2) savedForm=captureForm?.invoke() ?: savedForm
+        captureForm=null; clearPickers(); dismissDialogs(); uiGeneration++
+        pageTransition.clear(); pageScroll=null
+        createChrome(); show(page)
     }
     private fun openSystem(intent: Intent) {
         try { startActivity(intent) }

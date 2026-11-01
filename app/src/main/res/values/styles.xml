@@ -3,4 +3,17 @@
 <item name="android:fontFamily">sans</item><item name="android:colorAccent">#23796F</item>
 <item name="android:windowLightStatusBar">true</item><item name="android:statusBarColor">#F5F7F3</item>
 <item name="android:navigationBarColor">#F5F7F3</item><item name="android:windowBackground">#F5F7F3</item>
-</style></resources>
+</style>
+<style name="MintSpinnerTheme" parent="AppTheme">
+<item name="android:colorAccent">#23796F</item>
+<item name="android:colorControlNormal">#23796F</item>
+<item name="android:colorControlActivated">#23796F</item>
+<item name="android:colorControlHighlight">#C9E7D5</item>
+</style>
+<style name="MintSpinnerPopupTheme" parent="MintSpinnerTheme">
+<item name="android:listSelector">@drawable/mint_dropdown_selector</item>
+<item name="android:dropDownSelector">@drawable/mint_dropdown_selector</item>
+<item name="android:colorControlHighlight">#C9E7D5</item>
+<item name="android:windowBackground">#FFFFFF</item>
+</style>
+</resources>
