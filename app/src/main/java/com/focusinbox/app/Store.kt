@@ -118,8 +118,8 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         when(b.state) { "FAILED" -> transition(id,"FAILED","QUEUED"); "UNCERTAIN" -> transition(id,"UNCERTAIN","READY"); "SEND_FAILED" -> transition(id,"SEND_FAILED","READY"); else -> false }
     }
     fun recover() = synchronized(lock) {
-        writableDatabase.execSQL("UPDATE batches SET state='FAILED', error='分析被中断，请手动重试' WHERE state='ANALYZING'")
-        writableDatabase.execSQL("UPDATE batches SET state='UNCERTAIN', error='发送被中断，送达情况不确定；重试可能重复' WHERE state='SENDING'")
+        writableDatabase.execSQL("UPDATE batches SET state='FAILED', error='@error:ANALYSIS_INTERRUPTED' WHERE state='ANALYZING'")
+        writableDatabase.execSQL("UPDATE batches SET state='UNCERTAIN', error='@error:SEND_UNCERTAIN' WHERE state='SENDING'")
     }
     fun pendingCount(): Long = readableDatabase.rawQuery("SELECT COUNT(*) FROM notices WHERE batch IS NULL AND $visible",null).use { it.moveToFirst(); it.getLong(0) }
     fun apps(): List<Pair<String,String>> = readableDatabase.rawQuery("SELECT pkg,MAX(app) FROM notices GROUP BY pkg ORDER BY MAX(app)",null).use { c -> buildList { while(c.moveToNext()) add(c.getString(0) to c.getString(1)) } }

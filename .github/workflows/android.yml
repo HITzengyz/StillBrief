@@ -17,5 +17,5 @@ jobs:
       - run: ./gradlew testDebugUnitTest lintDebug assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: FocusInbox-debug
+          name: StillBrief-debug
           path: app/build/outputs/apk/debug/*.apk

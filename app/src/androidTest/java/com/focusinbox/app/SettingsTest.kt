@@ -91,4 +91,23 @@ class SettingsTest {
         assertEquals("",settings.webhook); assertEquals("",settings.signingKey); assertFalse(settings.enabled)
     }
 
+    @Test fun languagePersistsWithoutChangingSavedCredentialsOrOtherSettings() = isolated("settings-language-test") { settings,prefs ->
+        assertEquals(UiLanguage.CHINESE,settings.language)
+        settings.saveBasic(Provider.OPENAI,"test-language-key","https://open.feishu.cn/open-apis/bot/v2/hook/language",false)
+        settings.saveAdvanced(Provider.OPENAI,"https://example.com/v1/chat/completions","language-model","test-sign","不要翻译这条偏好")
+        settings.minutes=35; settings.hideRecents=true
+        val before=prefs.all.toMap(); val frozen=settings.snapshot()
+        settings.language=UiLanguage.ENGLISH
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val reopened=Settings(context,"settings-language-test")
+        assertEquals(UiLanguage.ENGLISH,reopened.language)
+        assertEquals(before,prefs.all.filterKeys { it!="language" })
+        assertEquals(UiLanguage.CHINESE,frozen.ai.language); assertEquals(UiLanguage.ENGLISH,reopened.snapshot().ai.language)
+        assertEquals("test-language-key",reopened.apiKey); assertEquals("不要翻译这条偏好",reopened.prompt)
+        assertEquals(35,reopened.minutes); assertTrue(reopened.hideRecents)
+        reopened.language=UiLanguage.CHINESE
+        assertEquals(UiLanguage.CHINESE,Settings(context,"settings-language-test").language)
+        assertEquals(before,prefs.all.filterKeys { it!="language" })
+    }
+
 }

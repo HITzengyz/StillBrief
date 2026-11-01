@@ -23,6 +23,7 @@ class Settings(context: Context, prefsName: String = "settings") {
                 .remove("key").remove("endpoint").remove("model").commit()
         }
     } }
+    var language: UiLanguage get() = UiLanguage.fromTag(prefs.getString("language","zh")); set(v) { synchronized(lock) { prefs.edit().putString("language",v.tag).commit() } }
     val provider: Provider get() = Provider.fromId(prefs.getString("provider",Provider.DEEPSEEK.id)!!)
     var enabled: Boolean get() = prefs.getBoolean("enabled", false); set(v) { synchronized(lock) { prefs.edit().putBoolean("enabled", v).commit() } }
     var minutes: Int get() = prefs.getInt("minutes", 25); set(v) { prefs.edit().putInt("minutes", v).commit() }
@@ -38,7 +39,7 @@ class Settings(context: Context, prefsName: String = "settings") {
     fun providerEndpoint(p: Provider): String = prefs.getString("provider.${p.id}.endpoint",p.endpoint)!!
     fun providerModel(p: Provider): String = prefs.getString("provider.${p.id}.model",p.model)!!
     fun config(p: Provider): AiConfig = synchronized(lock) {
-        AiConfig(p,secret("provider.${p.id}.key"),providerEndpoint(p),providerModel(p),prompt)
+        AiConfig(p,secret("provider.${p.id}.key"),providerEndpoint(p),providerModel(p),prompt,language)
     }
     fun snapshot(): RunConfig = synchronized(lock) { RunConfig(enabled,config(provider),webhook,signingKey) }
     /** Only basic save chooses the active provider. Advanced saves never switch it. */

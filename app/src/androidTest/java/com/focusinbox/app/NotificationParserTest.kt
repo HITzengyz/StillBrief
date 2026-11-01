@@ -78,4 +78,15 @@ class NotificationParserTest {
         val extras=Bundle().apply { putCharSequence(Notification.EXTRA_TEXT,raw) }
         assertEquals(raw,NotificationParser.parse(notification(extras),"other.app")!!.body)
     }
+    @Test fun englishSummaryWithLegacyMarkerStillDoesNotLoop() {
+        val extras=Bundle().apply {
+            putCharSequence(Notification.EXTRA_TITLE,"StillBrief")
+            putCharSequence(Notification.EXTRA_TEXT,NotificationParser.MARKER+" StillBrief: 2 notifications to check.")
+        }
+        assertNull(NotificationParser.parse(notification(extras),"com.ss.android.lark"))
+        val mixed=messages(true,"Work",message(NotificationParser.MARKER+" StillBrief: check your messages.","StillBrief"),message("Can you review this?","Alex"))
+        val parsed=NotificationParser.parse(notification(mixed),"com.lark.overseas")!!
+        assertTrue(parsed.body.contains("Alex：Can you review this?")); assertFalse(parsed.body.contains(NotificationParser.MARKER))
+    }
+
 }

@@ -10,8 +10,11 @@ import androidx.work.*
 import java.util.concurrent.TimeUnit
 
 class FocusApp : Application() {
+    override fun attachBaseContext(base: Context) { super.attachBaseContext(LocaleHelper.wrap(base)) }
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) { super.onConfigurationChanged(newConfig); LocaleHelper.current(this) }
     override fun onCreate() {
         super.onCreate()
+        LocaleHelper.initialize(this)
         Store(this).use { it.recover(); it.prune() }
         TimerEngine.restore(this)
         BatchEngine.resume(this)
@@ -41,13 +44,13 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
                 try {
                     val selected=if(claimed.isEmpty()) Selection(emptySet(),"") else {
                         val config=s.snapshot(); frozen=config
-                        require(config.enabled) { "请先在设置中确认并开启云端分析与飞书提醒" }
+                        demand(config.enabled,ErrorCode.CLOUD_DISABLED)
                         Network.analyze(config.ai,Policy.merge(claimed))
                     }
                     db.transition(id,"ANALYZING",if(selected.ids.isEmpty()) "EMPTY" else "READY",selected.message,ids=selected.ids.joinToString(","))
                 } catch(e: Exception) {
                     // No exception body or server response is logged or persisted (it may contain content/secrets).
-                    val message=when(e) { is IllegalArgumentException,is RemoteFailure -> e.message ?: "分析失败"; else -> "分析失败：响应格式、配置或密钥不可用，请检查后手动重试" }
+                    val message=when(e) { is AppFailure -> e.code.encoded(e.number); is RemoteFailure -> e.code.encoded(e.number); else -> ErrorCode.ANALYSIS_FAILED.encoded() }
                     db.transition(id,"ANALYZING","FAILED",error=message)
                     return Result.success()
                 }
@@ -56,15 +59,16 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
             if(b.state=="READY" && db.transition(id,"READY","SENDING")) {
                 try {
                     val config=frozen ?: s.snapshot()
-                    require(s.enabled && config.enabled) { "云端提醒已关闭，请重新开启后重试" }
+                    demand(s.enabled && config.enabled,ErrorCode.CLOUD_DISABLED)
                     Network.send(config,b.message)
                     db.transition(id,"SENDING","DONE")
                 } catch(e: Exception) {
                     val uncertain=e !is IllegalArgumentException && e !is RemoteFailure
                     db.transition(id,"SENDING",if(uncertain) "UNCERTAIN" else "SEND_FAILED",error=when {
-                        uncertain -> "送达不确定：连接超时、响应异常或发送中断。手动重试可能重复。"
-                        e is RemoteFailure -> e.message ?: "发送失败"
-                        else -> "发送配置无效或提醒已关闭，请检查后手动重试"
+                        uncertain -> ErrorCode.SEND_UNCERTAIN.encoded()
+                        e is RemoteFailure -> e.code.encoded(e.number)
+                        e is AppFailure -> e.code.encoded(e.number)
+                        else -> ErrorCode.SEND_CONFIG.encoded()
                     })
                 }
             }
