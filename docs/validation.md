@@ -1,3 +1,24 @@
+# 1.2 审查与验证
+
+验证日期：2026-11-01。GPT-6.1 Sol 实现，主代理审查和验收。
+
+- 构建成功；31项单元测试、32项Android15 ARM64设备测试全部通过；lint 0错误、22项提示。
+- 真实覆盖安装1.1→1.2成功。旧DeepSeek加密密钥原样迁移，原机器人签名保留，两者在界面上可正常读取。
+- 下拉选择DeepSeek、OpenAI、Anthropic；首次切到另两家密钥为空。OpenAI输入切走再返回仍保留草稿，保存并重新进入后仍存在；切回DeepSeek显示原密钥。未保存的下拉选择不改变当前使用的提供商。
+- OpenAI默认模型和完整接口正确显示；共用的机器人签名不因提供商切换而丢失。
+- 13项新单测覆盖三家请求参数/认证头、成功及空结果、拒绝/截断/坏格式、Anthropic文本块与思考块、完整JSON代码块；4项新设备测试覆盖旧配置迁移、配置隔离、固定整批配置及清除全部密钥。
+- README改为简短使用说明，隐私内容独立到PRIVACY.md。
+
+本轮验证使用虚构密钥和响应样本，没有向真实模型或飞书发送数据；各账号的实际模型权限、额度与网络可用性未实测。
+
+适配依据：
+- [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)：Bearer认证、JSON模式、max_completion_tokens。
+- [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna)：默认模型，使用reasoning_effort=none；自定义其他模型不附带该参数。
+- [Anthropic Messages](https://platform.claude.com/docs/en/api/http/messages/create)及[版本迁移说明](https://platform.claude.com/docs/en/api/migration-2026-10-21)：Bearer认证、anthropic-version=2026-10-21、顶层system、文本块与end_turn，默认模型claude-haiku-5-5。
+- [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)：保留deepseek-flash、JSON模式和关闭思考的请求参数。
+
+---
+
 # 1.1 审查与验证
 
 验证日期：2026-11-01。GPT-6.1 Sol 实现，主代理审查、精简界面说明并执行验证。

@@ -7,3 +7,4 @@
 *.keystore
 .env
 .env.*
+/.kotlin/

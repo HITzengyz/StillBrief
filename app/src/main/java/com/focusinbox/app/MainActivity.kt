@@ -212,27 +212,44 @@ class MainActivity : Activity() {
     }
     private fun preferences() {
         label("设置",23f,true)
-        label("采集在本机进行。开启后，通知正文发到你配置的AI接口，飞书只接收筛选摘要。",14f)
+        label("选择AI服务，休息时自动筛选通知并将摘要发到飞书。",14f)
+        var selected=settings.provider
+        val drafts=mutableMapOf<Provider,AiConfig>()
+        var keyError=false
+        fun secret(read: ()->String): String = try { read() } catch(_: Exception) { keyError=true; "" }
+        fun load(p: Provider): AiConfig = try { settings.config(p) } catch(_: Exception) {
+            keyError=true; AiConfig(p,"",settings.providerEndpoint(p),settings.providerModel(p),settings.prompt)
+        }
+        val initial=load(selected); drafts[selected]=initial
+        label("AI提供商",14f,true)
+        val providers=Provider.entries.toList()
+        val picker=Spinner(this).apply {
+            contentDescription="AI提供商"
+            adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,providers.map { it.title })
+            setSelection(providers.indexOf(selected),false)
+        }; content.addView(picker,LinearLayout.LayoutParams(-1,dp(52)))
+        val providerHint=label("当前使用${settings.provider.title}；保存基础设置后才切换提供商。",12f)
         val enabled=Switch(this).apply { text="启用云端分析与飞书提醒"; isChecked=settings.enabled }; content.addView(enabled)
         enabled.setOnCheckedChangeListener { _,on ->
             if(on && !settings.enabled) AlertDialog.Builder(this).setTitle("确认发送通知正文到云端")
-                .setMessage("通知可能包含联系人、聊天内容、验证码或事务信息。分析直接发到你设置的HTTPS接口，摘要发到你的飞书机器人。确认后还需保存设置。")
+                .setMessage("通知可能包含联系人、聊天内容、验证码或事务信息。分析直接发到所选AI的HTTPS接口，摘要发到你的飞书机器人。确认后还需保存设置。")
                 .setPositiveButton("我知晓并启用") { _,_ -> enabled.tag=true }
                 .setNegativeButton("取消") { _,_ -> enabled.isChecked=false }.setOnCancelListener { enabled.isChecked=false }.show()
         }
-        var keyError=false
-        fun secret(read: ()->String): String = try { read() } catch(_: Exception) { keyError=true; "" }
-        val api=field("DeepSeek API Key",secret { settings.apiKey },true)
+        val apiLabel=label("${selected.title} API Key",14f,true)
+        val api=EditText(this).apply { setText(initial.key); textSize=14f; inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD; setSingleLine(true) }
+        content.addView(api,LinearLayout.LayoutParams(-1,-2))
         val hook=field("飞书机器人地址（Webhook）",secret { settings.webhook },true)
-        label("从飞书群聊 → 设置 → 群机器人 → 添加自定义机器人中复制 Webhook 地址。不是普通群聊链接。",12f)
-        if(keyError) label("本机密钥不可解密，请重新填写并保存。",14f,true)
+        label("从飞书群聊 → 设置 → 群机器人 → 添加自定义机器人中复制 Webhook 地址。",12f)
+        val keyNotice=label(if(keyError) "本机密钥不可解密，请重新填写并保存。" else "各提供商的密钥、模型和接口地址分别保存。",12f)
         button("保存设置",primary=true) {
             when {
                 enabled.isChecked && (api.text.isBlank() || !Network.validUrl(hook.text.toString().trim(),true)) -> toast("启用前请填写API Key及有效飞书Webhook")
                 enabled.isChecked && !settings.enabled && enabled.tag!=true -> toast("请先确认云端发送说明")
                 else -> try {
-                    settings.saveBasic(api.text.toString().trim(),hook.text.toString().trim(),enabled.isChecked)
-                    toast("基础设置已保存，高级配置保持不变")
+                    settings.saveBasic(selected,api.text.toString().trim(),hook.text.toString().trim(),enabled.isChecked)
+                    providerHint.text="当前使用${settings.provider.title}；保存基础设置后才切换提供商。"
+                    toast("${selected.title}基础设置已保存，高级配置保持不变")
                 } catch(_: Exception) { settings.enabled=false; toast("密钥保存失败，云端分析已关闭") }
             }
         }
@@ -240,20 +257,35 @@ class MainActivity : Activity() {
         val toggle=button("高级设置 · 展开") { advanced.visibility=if(advanced.visibility==View.GONE) View.VISIBLE else View.GONE }
         toggle.setOnClickListener { advanced.visibility=if(advanced.visibility==View.GONE) View.VISIBLE else View.GONE; toggle.text=if(advanced.visibility==View.VISIBLE) "高级设置 · 收起" else "高级设置 · 展开" }
         content.addView(advanced)
-        label("以下配置独立保存，折叠不会清空输入；保存基础设置不会改动已保存的高级配置。",12f,parent=advanced)
-        val endpoint=field("AI接口完整地址（HTTPS）",settings.endpoint,parent=advanced)
-        val model=field("模型名称",settings.model,parent=advanced)
+        label("保存当前所选AI的模型和地址；不会切换正在使用的提供商。飞书签名和筛选偏好由三家共用。",12f,parent=advanced)
+        val endpoint=field("AI接口完整地址（HTTPS）",initial.endpoint,parent=advanced)
+        val model=field("模型名称",initial.model,parent=advanced)
         val sign=field("签名密钥（仅机器人开启签名验证时填写）",secret { settings.signingKey },true,parent=advanced)
-        label("未开启机器人签名验证时留空；这不是DeepSeek API Key。",12f,parent=advanced)
+        label("未开启机器人签名验证时留空；这不是AI的API Key。",12f,parent=advanced)
         val prompt=field("补充筛选偏好（私聊仍会保留）",settings.prompt,multiline=true,parent=advanced)
         button("保存高级设置",advanced) {
             when {
                 !Network.validUrl(endpoint.text.toString().trim()) -> toast("AI接口须为有效HTTPS完整地址")
                 model.text.isBlank() -> toast("请填写模型名称")
                 else -> try {
-                    settings.saveAdvanced(endpoint.text.toString().trim(),model.text.toString().trim(),sign.text.toString().trim(),prompt.text.toString())
-                    toast("高级设置已保存")
+                    settings.saveAdvanced(selected,endpoint.text.toString().trim(),model.text.toString().trim(),sign.text.toString().trim(),prompt.text.toString())
+                    toast("${selected.title}高级设置已保存；当前仍使用${settings.provider.title}")
                 } catch(_: Exception) { toast("高级设置保存失败，请检查密钥") }
+            }
+        }
+        // Install after all fields exist. Repeated asynchronous initial selection is a no-op.
+        picker.onItemSelectedListener=object: AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            override fun onItemSelected(parent: AdapterView<*>?,view: View?,position: Int,id: Long) {
+                if(position!=picker.selectedItemPosition) return
+                val next=providers[position]
+                if(next==selected) return
+                drafts[selected]=AiConfig(selected,api.text.toString(),endpoint.text.toString(),model.text.toString(),prompt.text.toString())
+                selected=next
+                val draft=drafts.getOrPut(next) { load(next) }
+                apiLabel.text="${next.title} API Key"; api.setText(draft.key); endpoint.setText(draft.endpoint); model.setText(draft.model)
+                providerHint.text="表单：${next.title} · 当前使用${settings.provider.title}；点保存设置才切换。"
+                if(keyError) keyNotice.text="某家本机密钥不可解密，请重新填写后保存。"
             }
         }
         val management=card(); label("运行与消息管理",17f,true,management)
@@ -264,7 +296,7 @@ class MainActivity : Activity() {
             AlertDialog.Builder(this).setTitle("永久删除本机通知和批次？").setMessage("此操作不可撤销。设置、过滤规则和密钥会保留。正在分析或发送时禁止删除。")
                 .setNegativeButton("取消",null).setPositiveButton("删除") { _,_ -> toast(if(Store(this).use { it.clear() }) "已清除" else "当前正在分析或发送，请稍后再试") }.show()
         }
-        button("删除保存的密钥并关闭云端分析") { AlertDialog.Builder(this).setTitle("删除密钥？").setMessage("将清除API Key、Webhook与签名密钥。已发出的请求无法撤回。")
+        button("删除保存的密钥并关闭云端分析") { AlertDialog.Builder(this).setTitle("删除密钥？").setMessage("将清除三家AI的全部API Key、Webhook与签名密钥。已发出的请求无法撤回。")
             .setNegativeButton("取消",null).setPositiveButton("删除") { _,_ -> settings.clearSecrets(); show(2) }.show() }
     }
     private fun filtersPage() {

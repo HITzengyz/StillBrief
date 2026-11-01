@@ -11,21 +11,52 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 class Settings(context: Context, prefsName: String = "settings") {
+    companion object { private val lock=Any() }
     private val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
-    var enabled: Boolean get() = prefs.getBoolean("enabled", false); set(v) { prefs.edit().putBoolean("enabled", v).commit() }
+    init { synchronized(lock) {
+        if(!prefs.getBoolean("providers_migrated",false)) {
+            val editor=prefs.edit()
+            prefs.getString("key",null)?.let { editor.putString("provider.deepseek.key",it) }
+            editor.putString("provider.deepseek.endpoint",prefs.getString("endpoint",Provider.DEEPSEEK.endpoint))
+                .putString("provider.deepseek.model",prefs.getString("model",Provider.DEEPSEEK.model))
+                .putString("provider",Provider.DEEPSEEK.id).putBoolean("providers_migrated",true)
+                .remove("key").remove("endpoint").remove("model").commit()
+        }
+    } }
+    val provider: Provider get() = Provider.fromId(prefs.getString("provider",Provider.DEEPSEEK.id)!!)
+    var enabled: Boolean get() = prefs.getBoolean("enabled", false); set(v) { synchronized(lock) { prefs.edit().putBoolean("enabled", v).commit() } }
     var minutes: Int get() = prefs.getInt("minutes", 25); set(v) { prefs.edit().putInt("minutes", v).commit() }
-    var model: String get() = prefs.getString("model", "deepseek-flash")!!; set(v) { prefs.edit().putString("model", v).commit() }
-    var endpoint: String get() = prefs.getString("endpoint", "https://api.deepseek.com/chat/completions")!!; set(v) { prefs.edit().putString("endpoint", v).commit() }
-    var prompt: String get() = prefs.getString("prompt", "")!!; set(v) { prefs.edit().putString("prompt", v).commit() }
+    // Aliases preserve existing local callers while each provider owns its own values.
+    var model: String get() = prefs.getString("provider.${provider.id}.model",provider.model)!!; set(v) { synchronized(lock) { prefs.edit().putString("provider.${provider.id}.model", v).commit() } }
+    var endpoint: String get() = prefs.getString("provider.${provider.id}.endpoint",provider.endpoint)!!; set(v) { synchronized(lock) { prefs.edit().putString("provider.${provider.id}.endpoint", v).commit() } }
+    var prompt: String get() = prefs.getString("prompt", "")!!; set(v) { synchronized(lock) { prefs.edit().putString("prompt", v).commit() } }
     var excluded: Set<String> get() = prefs.getStringSet("excluded", emptySet())!!.toSet(); set(v) { prefs.edit().putStringSet("excluded", v).commit() }
-    var apiKey: String get() = secret("key"); set(v) { putSecret("key", v) }
-    var webhook: String get() = secret("hook"); set(v) { putSecret("hook", v) }
-    var signingKey: String get() = secret("sign"); set(v) { putSecret("sign", v) }
+    var apiKey: String get() = secret("provider.${provider.id}.key"); set(v) { synchronized(lock) { putSecret("provider.${provider.id}.key", v) } }
+    var webhook: String get() = secret("hook"); set(v) { synchronized(lock) { putSecret("hook", v) } }
+    var signingKey: String get() = secret("sign"); set(v) { synchronized(lock) { putSecret("sign", v) } }
     var hideRecents: Boolean get() = prefs.getBoolean("hideRecents",false); set(v) { prefs.edit().putBoolean("hideRecents",v).commit() }
-    /** Basic saves intentionally do not write any advanced configuration. */
-    fun saveBasic(key: String,hook: String,on: Boolean) { apiKey=key; webhook=hook; enabled=on }
-    fun saveAdvanced(endpointValue: String,modelValue: String,signValue: String,promptValue: String) {
-        signingKey=signValue; endpoint=endpointValue; model=modelValue; prompt=promptValue
+    fun providerEndpoint(p: Provider): String = prefs.getString("provider.${p.id}.endpoint",p.endpoint)!!
+    fun providerModel(p: Provider): String = prefs.getString("provider.${p.id}.model",p.model)!!
+    fun config(p: Provider): AiConfig = synchronized(lock) {
+        AiConfig(p,secret("provider.${p.id}.key"),providerEndpoint(p),providerModel(p),prompt)
+    }
+    fun snapshot(): RunConfig = synchronized(lock) { RunConfig(enabled,config(provider),webhook,signingKey) }
+    /** Only basic save chooses the active provider. Advanced saves never switch it. */
+    fun saveBasic(key: String,hook: String,on: Boolean) = saveBasic(provider,key,hook,on)
+    fun saveBasic(p: Provider,key: String,hook: String,on: Boolean) = synchronized(lock) {
+        val encryptedKey=if(key.isBlank()) null else encrypt(key)
+        val encryptedHook=if(hook.isBlank()) null else encrypt(hook)
+        prefs.edit().putString("provider.${p.id}.key",encryptedKey).putString("hook",encryptedHook)
+            .putString("provider",p.id).putBoolean("enabled",on).commit()
+        Unit
+    }
+    fun saveAdvanced(endpointValue: String,modelValue: String,signValue: String,promptValue: String) =
+        saveAdvanced(provider,endpointValue,modelValue,signValue,promptValue)
+    fun saveAdvanced(p: Provider,endpointValue: String,modelValue: String,signValue: String,promptValue: String) = synchronized(lock) {
+        val encryptedSign=if(signValue.isBlank()) null else encrypt(signValue)
+        prefs.edit().putString("provider.${p.id}.endpoint",endpointValue).putString("provider.${p.id}.model",modelValue)
+            .putString("sign",encryptedSign).putString("prompt",promptValue).commit()
+        Unit
     }
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -42,11 +73,18 @@ class Settings(context: Context, prefsName: String = "settings") {
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)))
         return String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), Charsets.UTF_8)
     }
-    private fun putSecret(name: String, value: String) {
-        if(value.isBlank()) { prefs.edit().remove(name).commit(); return }
+    private fun encrypt(value: String): String {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key()) }
         val data = cipher.doFinal(value.toByteArray())
-        prefs.edit().putString(name, Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(data, Base64.NO_WRAP)).commit()
+        return Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(data, Base64.NO_WRAP)
     }
-    fun clearSecrets() { prefs.edit().remove("key").remove("hook").remove("sign").putBoolean("enabled",false).commit() }
+    private fun putSecret(name: String, value: String) {
+        prefs.edit().putString(name,if(value.isBlank()) null else encrypt(value)).commit()
+    }
+    fun clearSecrets() = synchronized(lock) {
+        val editor=prefs.edit().remove("key").remove("hook").remove("sign").putBoolean("enabled",false)
+        Provider.entries.forEach { editor.remove("provider.${it.id}.key") }
+        editor.commit()
+        Unit
+    }
 }

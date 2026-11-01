@@ -33,13 +33,17 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
     override fun doWork(): Result {
         val id=inputData.getLong("id",0)
         val s=Settings(applicationContext)
+        var frozen: RunConfig?=null
         Store(applicationContext).use { db ->
             var b=db.get(id)?:return Result.success()
             val claimed=if(b.state=="QUEUED") db.claimAnalysis(id) else null
             if(claimed!=null) {
                 try {
-                    if(claimed.isNotEmpty()) require(s.enabled) { "请先在设置中确认并开启云端分析与飞书提醒" }
-                    val selected=if(claimed.isEmpty()) Selection(emptySet(),"") else Network.analyze(s,Policy.merge(claimed))
+                    val selected=if(claimed.isEmpty()) Selection(emptySet(),"") else {
+                        val config=s.snapshot(); frozen=config
+                        require(config.enabled) { "请先在设置中确认并开启云端分析与飞书提醒" }
+                        Network.analyze(config.ai,Policy.merge(claimed))
+                    }
                     db.transition(id,"ANALYZING",if(selected.ids.isEmpty()) "EMPTY" else "READY",selected.message,ids=selected.ids.joinToString(","))
                 } catch(e: Exception) {
                     // No exception body or server response is logged or persisted (it may contain content/secrets).
@@ -51,8 +55,9 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
             b=db.get(id)?:return Result.success()
             if(b.state=="READY" && db.transition(id,"READY","SENDING")) {
                 try {
-                    require(s.enabled) { "云端提醒已关闭，请重新开启后重试" }
-                    Network.send(s,b.message)
+                    val config=frozen ?: s.snapshot()
+                    require(s.enabled && config.enabled) { "云端提醒已关闭，请重新开启后重试" }
+                    Network.send(config,b.message)
                     db.transition(id,"SENDING","DONE")
                 } catch(e: Exception) {
                     val uncertain=e !is IllegalArgumentException && e !is RemoteFailure
