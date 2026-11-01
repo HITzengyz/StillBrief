@@ -20,6 +20,8 @@ For local reminders during Do Not Disturb, add StillBrief under **Do Not Disturb
 
 Requires Android8.0+. New installations default to local notifications; upgrades keep the existing destination. Update with the same signing key to retain records and settings.
 
+Pages switch with a gentle fade; disabling system animations makes transitions immediate.
+
 ## Build
 
 Use JDK17 and Android SDK35:

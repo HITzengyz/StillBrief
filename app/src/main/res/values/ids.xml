@@ -1,0 +1,5 @@
+<resources>
+    <item name="page_host" type="id"/>
+    <item name="page_header" type="id"/>
+    <item name="page_navigation" type="id"/>
+</resources>

@@ -33,6 +33,10 @@ class MainActivity : Activity() {
     private lateinit var settings: Settings
     private val handler=Handler(Looper.getMainLooper())
     private var page=0
+    private var resumed=false
+    private lateinit var pageHost: FrameLayout
+    private lateinit var pageTransition: PageTransition
+    private val navigationButtons=mutableListOf<Button>()
     private var clock: TextView?=null
     private var status: TextView?=null
     private var pending: TextView?=null
@@ -59,17 +63,20 @@ class MainActivity : Activity() {
         }
         val retained=lastNonConfigurationInstance as? RetainedScreen
         savedForm=retained?.draft
+        createChrome()
         show(retained?.page ?: 0)
         handleNotificationIntent(intent)
     }
     override fun onResume() {
         super.onResume()
+        resumed=true
         getSystemService(ActivityManager::class.java).appTasks.forEach { it.setExcludeFromRecents(settings.hideRecents) }
         if(page==4 || page==5) show(page)
         if(page==2) refreshLocalStatus()
         handler.post(tick)
     }
-    override fun onPause() { handler.removeCallbacks(tick); super.onPause() }
+    override fun onPause() { resumed=false; handler.removeCallbacks(tick); pageTransition.finish(); super.onPause() }
+    override fun onDestroy() { handler.removeCallbacks(tick); pageTransition.clear(); noticeDialog?.dismiss(); captureForm=null; super.onDestroy() }
     private fun label(text: String,size: Float=15f,bold: Boolean=false,parent: LinearLayout=content): TextView = TextView(this).also {
         it.text=text; it.textSize=size; it.setTextColor(ink); it.setPadding(0,dp(6),0,dp(6)); if(bold) it.setTypeface(null,Typeface.BOLD); parent.addView(it)
     }
@@ -85,19 +92,45 @@ class MainActivity : Activity() {
         it.background=GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=dp(20).toFloat() }
         content.addView(it,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(14); bottomMargin=dp(6) })
     }
-    private fun show(which: Int) {
-        if(page==2) savedForm=captureForm?.invoke() ?: savedForm
-        captureForm=null
-        localStatusView=null
-        page=which; clock=null; status=null; pending=null; startButton=null; pauseButton=null; restButton=null
+    private fun createChrome() {
         val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(245,247,243)) }
-        val top=LinearLayout(this).apply { setPadding(dp(20),dp(16),dp(20),0); orientation=LinearLayout.VERTICAL }
+        val top=LinearLayout(this).apply { id=R.id.page_header; setPadding(dp(20),dp(16),dp(20),0); orientation=LinearLayout.VERTICAL }
         label(tr(R.string.app_name),28f,true,top); label(tr(R.string.tagline),13f,parent=top); root.addView(top)
-        val scroll=ScrollView(this); content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(20),dp(4),dp(20),dp(24)) }; scroll.addView(content); root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-        val nav=LinearLayout(this).apply { gravity=Gravity.CENTER; setPadding(dp(12),0,dp(12),dp(6)) }
-        listOf(tr(R.string.nav_focus),tr(R.string.nav_notices),tr(R.string.nav_settings)).forEachIndexed { i,name -> nav.addView(Button(this).apply { text=if(i==which || i==2 && which>=2) "● $name" else name; setTextColor(green); textSize=14f; isAllCaps=false; minimumHeight=dp(54); setPadding(dp(4),dp(10),dp(4),dp(10)); stateListAnimator=null; elevation=0f; background=GradientDrawable().apply { setColor(if(i==which || i==2 && which>=2) Color.rgb(223,237,226) else Color.TRANSPARENT); cornerRadius=dp(12).toFloat() }; setOnClickListener { show(i) } },LinearLayout.LayoutParams(0,-2,1f)) }; root.addView(nav)
-        setContentView(root)
+        pageHost=FrameLayout(this).apply { id=R.id.page_host }
+        root.addView(pageHost,LinearLayout.LayoutParams(-1,0,1f))
+        pageTransition=PageTransition(pageHost)
+        val nav=LinearLayout(this).apply { id=R.id.page_navigation; gravity=Gravity.CENTER; setPadding(dp(12),0,dp(12),dp(6)) }
+        listOf(tr(R.string.nav_focus),tr(R.string.nav_notices),tr(R.string.nav_settings)).forEachIndexed { index,name ->
+            val button=Button(this).apply {
+                text=name; setTextColor(green); textSize=14f; isAllCaps=false; minimumHeight=dp(54); setPadding(dp(4),dp(10),dp(4),dp(10))
+                stateListAnimator=null; elevation=0f
+                background=GradientDrawable().apply { cornerRadius=dp(12).toFloat() }
+                setOnClickListener { show(index) }
+            }
+            navigationButtons.add(button); nav.addView(button,LinearLayout.LayoutParams(0,-2,1f))
+        }
+        root.addView(nav); setContentView(root)
+    }
+    private fun show(which: Int) {
+        val previous=page
+        if(page==2) savedForm=captureForm?.invoke() ?: savedForm
+        captureForm=null; localStatusView=null
+        page=which; clock=null; status=null; pending=null; startButton=null; pauseButton=null; restButton=null
+        val scroll=ScrollView(this)
+        content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(20),dp(4),dp(20),dp(24)) }
+        scroll.addView(content)
+        navigationButtons.forEachIndexed { index,button ->
+            val selected=index==which || index==2 && which>=2
+            button.isSelected=selected
+            (button.background as GradientDrawable).setColor(if(selected) Color.rgb(223,237,226) else Color.TRANSPARENT)
+        }
         when(which) { 0 -> home(); 1 -> history(); 2 -> preferences(); 3 -> filtersPage(); 4 -> backgroundPage(); 5 -> localNotificationPage() }
+        val direction=when {
+            previous>=3 && which==2 -> PageTransition.Direction.BACK
+            which>=3 && previous!=which -> PageTransition.Direction.FORWARD
+            else -> PageTransition.Direction.NONE
+        }
+        pageTransition.replace(scroll,resumed && previous!=which,direction)
     }
     private fun home() {
         val c=card(); label(tr(R.string.focus_title),17f,true,c)

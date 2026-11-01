@@ -1,3 +1,32 @@
+# StillBrief 1.6 验收记录
+
+日期：2026-11-01。版本：1.6（versionCode 7）。GPT-6.1 Sol实现，主代理审查、构建及录屏验收。
+
+## 页面过渡
+
+- 标题和底部导航保持固定，仅中间内容进行短过渡：80毫秒淡出、140毫秒淡入，总计220毫秒。
+- 进入设置子页时轻微向左过渡，返回时方向相反；位移8dp。
+- 首次展示、同页刷新、倒计时更新和权限设置返回不播放切页动画。
+- 跟随系统动画开关。连续点击取消旧过渡，以最后一次点击为准；切到后台或销毁页面时清理动画。
+- 未新增依赖；通知采集、AI分析及推送流程保持原有实现。
+
+参考：[Android原生淡入淡出](https://developer.android.com/develop/ui/views/animations/reveal-or-hide-view)、[Material页面过渡](https://m2.material.io/design/motion/the-motion-system.html)。
+
+## 验证结果
+
+- assembleDebug、testDebugUnitTest、lintDebug、connectedDebugAndroidTest全部成功。
+- 45项单元测试、68项Android设备测试，共113项通过，0失败、0跳过。
+- 新增3项设备测试覆盖：快速切页保留未保存输入/旧页不可交互/标题底栏稳定、暂停和销毁时清理、关闭动画直接替换。
+- Lint：0错误、20警告，与1.5相同。
+- Android15模拟器实际录屏并逐帧检查：底部导航切换、设置子页进入/返回均有短过渡；未见文字叠影或旧页面残留；最后点击的页面正确。
+- 实际将系统动画比例设为0后录屏，确认直接切换，检查完成后恢复原系统值。
+- 从1.5覆盖安装成功；签名与之前交付包一致。
+- git diff --check通过。
+
+安装包：StillBrief-1.6-debug.apk。实际录屏：StillBrief-1.6-motion.mp4。
+
+---
+
 # StillBrief 1.5 验收记录
 
 日期：2026-11-01。版本：1.5（versionCode 6）。实现：GPT-6.1 Sol；主代理审查、构建及模拟器验收。
