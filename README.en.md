@@ -116,7 +116,7 @@ From **Local notifications and Do Not Disturb**, jump into your system DND setti
 
 On the **Focus** tab, tap the timer, then drag the dial or tap a preset (**15, 25, 35, 45, or 60 minutes**—or tap the center digits to type a custom time).
 
-Pick your mode and hit **Start focus**:
+Choose **Single** or **Auto-repeat** at the top right of the focus card, then hit **Start focus**. You can switch modes mid-session without resetting the remaining time:
 
 | Mode | What happens when time's up | Best for |
 | --- | --- | --- |

@@ -178,6 +178,46 @@ class FocusSessionStoreTest {
         assertEquals(current,db.timer()); assertTrue(db.insert(n(122000,"still current")))
         assertEquals(1L,db.pendingCount())
     }
+    @Test fun switchingToLoopPreservesClockAndStartsNextRound() {
+        val first=db.startFocus(1,FocusMode.SINGLE,1000)
+        db.insert(n(2000,"first round"))
+        val changed=db.changeFocusMode(FocusMode.LOOP,31000)
+        assertEquals(first.copy(mode=FocusMode.LOOP),changed)
+        assertTrue(db.advanceTimer(first.token,61000))
+        assertEquals(61000L,db.timer().start); assertEquals(121000L,db.timer().end)
+        assertEquals(FocusMode.LOOP,db.timer().mode)
+        assertEquals(listOf("first round"),db.notices(db.batches().single().id).map { it.body })
+        assertFalse(db.advanceTimer(first.token,61000))
+    }
+    @Test fun switchingToSingleStopsAtExistingDeadline() {
+        val first=db.startFocus(1,FocusMode.LOOP,1000)
+        db.insert(n(2000,"one message"))
+        assertEquals(first.copy(mode=FocusMode.SINGLE),db.changeFocusMode(FocusMode.SINGLE,31000))
+        assertTrue(db.advanceTimer(first.token,61000))
+        assertEquals("IDLE",db.timer().state); assertEquals(1,db.batches().size)
+        assertFalse(db.insert(n(62000,"after stop")))
+    }
+    @Test fun switchingWhilePausedPersistsAcrossReopenAndResume() {
+        db.startFocus(1,FocusMode.SINGLE,1000)
+        val paused=db.pauseFocus(31000)
+        assertEquals(paused.copy(mode=FocusMode.LOOP),db.changeFocusMode(FocusMode.LOOP,40000))
+        db.close(); db=Store(context,name,emptySet()) { DeliveryTarget.LOCAL }
+        val resumed=db.startFocus(25,FocusMode.SINGLE,100000)
+        assertEquals(FocusMode.LOOP,resumed.mode); assertEquals(130000L,resumed.end)
+        assertEquals(paused.roundId,resumed.roundId)
+        db.advanceTimer(resumed.token,130000)
+        assertEquals("RUNNING",db.timer().state); assertEquals(190000L,db.timer().end)
+    }
+    @Test fun switchingAtDeadlineSettlesOldModeBeforeApplyingNewMode() {
+        val first=db.startFocus(1,FocusMode.LOOP,1000)
+        db.insert(n(2000,"old round"))
+        val changed=db.changeFocusMode(FocusMode.SINGLE,61000)
+        assertNotEquals(first.roundId,changed.roundId); assertEquals(61000L,changed.start)
+        assertEquals(FocusMode.SINGLE,changed.mode); assertEquals(1,db.batches().size)
+        db.advanceTimer(changed.token,121000)
+        assertEquals("IDLE",db.timer().state)
+        assertEquals("IDLE",db.changeFocusMode(FocusMode.LOOP,122000).state)
+    }
     @Test fun modePreferenceDefaultsToSingleAndPersistsWithoutAffectingActiveMode() {
         val prefs="focus-mode-test"
         context.deleteSharedPreferences(prefs)

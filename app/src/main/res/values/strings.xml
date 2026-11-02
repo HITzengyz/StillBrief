@@ -273,8 +273,13 @@
     <string name="api_key_cleared">已清空当前草稿，保存后生效</string>
     <string name="api_key_copied">已复制 API Key</string>
     <string name="focus_mode_single">单次</string>
-    <string name="focus_mode_loop">循环</string>
+    <string name="focus_mode_loop">自动循环</string>
     <string name="focus_loop_running">循环专注中 · 每轮%1$d分钟 · 到点自动进入下一轮</string>
     <string name="batch_focus_window">专注窗口：%1$s — %2$s</string>
     <string name="focus_window_open">本轮进行中</string>
+    <string name="focus_mode_menu_label">%1$s ▾</string>
+    <string name="focus_mode_menu_description">专注模式：%1$s，点击切换</string>
+    <string name="focus_mode_title">专注模式</string>
+    <string name="focus_mode_single_option">单次专注\n到点分析一次，然后停止。</string>
+    <string name="focus_mode_loop_option">自动循环\n每 %1$d 分钟分析一次，自动开始下一轮。</string>
 </resources>

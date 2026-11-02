@@ -123,10 +123,10 @@ class DurationPicker(context: Context,initialMinutes: Int,private val heading: S
             id=R.id.duration_exact_input; inputType=InputType.TYPE_CLASS_NUMBER; setText(dial.minutes.toString()); setSelectAllOnFocus(true); hint=context.getString(R.string.duration_hint)
         }
         val wrapper=LinearLayout(context).apply { setPadding(dp(24),dp(8),dp(24),0); addView(input,LinearLayout.LayoutParams(-1,-2)) }
-        numericDialog=AlertDialog.Builder(context).setTitle(R.string.duration_exact_title).setView(wrapper)
+        numericDialog=MintDialogBuilder(context).setTitle(R.string.duration_exact_title).setView(wrapper)
             .setNegativeButton(R.string.cancel,null).setPositiveButton(R.string.confirm,null).create().also { dialog ->
                 dialog.setOnShowListener {
-                    input.requestFocus(); dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+                    input.requestFocus(); dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
                     dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                         val value=input.text.toString().toIntOrNull()
                         if(value==null || value !in 1..180) input.error=context.getString(R.string.duration_invalid)

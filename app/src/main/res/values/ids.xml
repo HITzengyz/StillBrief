@@ -13,4 +13,5 @@
     <item name="api_key_clear" type="id"/>
     <item name="focus_single" type="id"/>
     <item name="focus_loop" type="id"/>
+    <item name="focus_mode_menu" type="id"/>
 </resources>

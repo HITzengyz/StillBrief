@@ -95,6 +95,13 @@ object TimerEngine {
         if(old.token!=t.token) cancel(c,old.token)
         schedule(c,t); BatchEngine.resume(c)
     }
+    @Synchronized fun setMode(c: Context,mode: FocusMode) {
+        Settings(c).focusMode=mode
+        val old=Store(c).use { it.timer() }
+        val current=Store(c).use { it.changeFocusMode(mode) }
+        if(old.token!=current.token) cancel(c,old.token)
+        schedule(c,current); BatchEngine.resume(c)
+    }
     @Synchronized fun pause(c: Context) {
         val old=Store(c).use { it.timer() }
         Store(c).use { it.pauseFocus() }

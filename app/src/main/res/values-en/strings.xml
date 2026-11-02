@@ -273,8 +273,13 @@
     <string name="api_key_cleared">Draft cleared. Save to apply.</string>
     <string name="api_key_copied">API key copied</string>
     <string name="focus_mode_single">Single</string>
-    <string name="focus_mode_loop">Loop</string>
+    <string name="focus_mode_loop">Auto-repeat</string>
     <string name="focus_loop_running">Loop focus · %1$d minutes per round · next round starts at zero</string>
     <string name="batch_focus_window">Focus window: %1$s — %2$s</string>
     <string name="focus_window_open">Round in progress</string>
+    <string name="focus_mode_menu_label">%1$s ▾</string>
+    <string name="focus_mode_menu_description">Focus mode: %1$s. Tap to change.</string>
+    <string name="focus_mode_title">Focus mode</string>
+    <string name="focus_mode_single_option">Single\nAnalyze once when the timer ends, then stop.</string>
+    <string name="focus_mode_loop_option">Auto-repeat\nAnalyze every %1$d minutes and start the next round automatically.</string>
 </resources>

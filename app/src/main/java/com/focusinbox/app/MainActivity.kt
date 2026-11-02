@@ -57,7 +57,7 @@ class MainActivity : Activity() {
     private var pauseButton: Button?=null
     private var restButton: Button?=null
     private var analyzeButton: Button?=null
-    private var modePicker: RadioGroup?=null
+    private var modeButton: Button?=null
     private var noticeDialog: AlertDialog?=null
     private var durationSheet: DurationPicker?=null
     private var localStatusView: TextView?=null
@@ -137,7 +137,7 @@ class MainActivity : Activity() {
         rememberScroll(); apiKeyField?.conceal(); apiKeyField=null; clearPickers(); uiGeneration++
         if(page==2) savedForm=captureForm?.invoke() ?: savedForm
         captureForm=null; localStatusView=null
-        page=which; clock=null; status=null; pending=null; startButton=null; pauseButton=null; restButton=null; analyzeButton=null; modePicker=null
+        page=which; clock=null; status=null; pending=null; startButton=null; pauseButton=null; restButton=null; analyzeButton=null; modeButton=null
         val scroll=ScrollView(this); pageScroll=scroll
         val generation=uiGeneration
         val restoreY=scrollPositions[which] ?: 0
@@ -163,23 +163,15 @@ class MainActivity : Activity() {
         pageTransition.replace(scroll,resumed && previous!=which,direction)
     }
     private fun home() {
-        val c=card(); label(tr(R.string.focus_title),17f,true,c)
-        modePicker=RadioGroup(this).apply {
-            orientation=RadioGroup.HORIZONTAL
-            listOf(R.string.focus_mode_single,R.string.focus_mode_loop).forEachIndexed { index,textId ->
-                addView(RadioButton(this@MainActivity).apply {
-                    id=if(index==0) R.id.focus_single else R.id.focus_loop
-                    text=tr(textId); textSize=14f; minHeight=dp(48)
-                    val states=arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf())
-                    buttonTintList=android.content.res.ColorStateList(states,intArrayOf(Color.rgb(159,181,173),green))
-                    setTextColor(android.content.res.ColorStateList(states,intArrayOf(Color.rgb(139,157,150),green)))
-                    background=android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(35,35,121,111)),null,GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=dp(12).toFloat() })
-                },RadioGroup.LayoutParams(0,-2,1f))
-            }
-            setOnCheckedChangeListener { _,checked ->
-                if(Store(this@MainActivity).use { it.timer().state }=="IDLE") settings.focusMode=if(checked==R.id.focus_loop) FocusMode.LOOP else FocusMode.SINGLE
-            }
-        }.also { c.addView(it) }
+        val c=card()
+        val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        c.addView(heading,LinearLayout.LayoutParams(-1,-2))
+        label(tr(R.string.focus_title),17f,true,heading).layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+        modeButton=button("",heading) { chooseFocusMode() }.apply {
+            id=R.id.focus_mode_menu
+            textSize=13f
+            layoutParams=LinearLayout.LayoutParams(-2,-2).apply { leftMargin=dp(8) }
+        }
         clock=label("25:00",58f,true,c).apply { gravity=Gravity.CENTER; setAutoSizeTextTypeUniformWithConfiguration(24,58,2,android.util.TypedValue.COMPLEX_UNIT_SP); contentDescription=tr(R.string.timer_adjust_description); setOnClickListener { editDuration() } }
         button(tr(R.string.timer_adjust),c) { editDuration() }
         status=label("",14f,parent=c)
@@ -194,6 +186,15 @@ class MainActivity : Activity() {
         button(tr(R.string.sound_settings),info) { openSystem(Intent(AndroidSettings.ACTION_SOUND_SETTINGS)) }
         label(tr(R.string.notifications_help),12f)
         update()
+    }
+    private fun chooseFocusMode() {
+        val timer=Store(this).use { it.timer() }
+        val minutes=if(timer.state=="IDLE") settings.minutes else (timer.interval/60_000).toInt()
+        alert().setTitle(tr(R.string.focus_mode_title))
+            .setItems(arrayOf(tr(R.string.focus_mode_single_option),tr(R.string.focus_mode_loop_option,minutes))) { _,which ->
+                TimerEngine.setMode(this,if(which==1) FocusMode.LOOP else FocusMode.SINGLE)
+                update()
+            }.show()
     }
     private fun editDuration() {
         val t=Store(this).use { it.timer() }
@@ -222,9 +223,10 @@ class MainActivity : Activity() {
             if(t.state=="RUNNING" && t.end<=System.currentTimeMillis()) { TimerEngine.finish(this,t.token); t=db.timer() }
             val millis=when(t.state) { "RUNNING" -> (t.end-System.currentTimeMillis()).coerceAtLeast(0); "PAUSED" -> t.remaining; else -> settings.minutes*60_000L }
             val mode=if(t.state=="IDLE") settings.focusMode else t.mode
-            modePicker?.apply {
-                check(if(mode==FocusMode.LOOP) R.id.focus_loop else R.id.focus_single)
-                for(index in 0 until childCount) getChildAt(index).isEnabled=t.state=="IDLE"
+            modeButton?.apply {
+                val name=tr(if(mode==FocusMode.LOOP) R.string.focus_mode_loop else R.string.focus_mode_single)
+                text=tr(R.string.focus_mode_menu_label,name)
+                contentDescription=tr(R.string.focus_mode_menu_description,name)
             }
             analyzeButton?.isEnabled=t.state!="IDLE" && db.pendingCount()>0
             startButton?.apply { visibility=if(t.state=="RUNNING") View.GONE else View.VISIBLE; text=if(t.state=="PAUSED") tr(R.string.timer_resume) else tr(R.string.timer_start) }
@@ -594,7 +596,7 @@ class MainActivity : Activity() {
         durationSheet?.dismiss(); durationSheet=null
         dialogs.toList().forEach { it.dismiss() }; dialogs.clear(); noticeDialog=null
     }
-    private fun alert(): AlertDialog.Builder = object: AlertDialog.Builder(this) {
+    private fun alert(): AlertDialog.Builder = object: MintDialogBuilder(this) {
         override fun create(): AlertDialog = super.create().also { dialog ->
             dialogs.add(dialog); dialog.setOnDismissListener { dialogs.remove(dialog) }
         }

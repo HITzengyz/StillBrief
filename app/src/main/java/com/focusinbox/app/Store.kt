@@ -193,6 +193,15 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         val started=Timer("RUNNING",now+duration,duration,nextToken(t,now),now,mode,duration,round)
         writeTimer(started); started
     }
+    /** Change how this round ends without resetting its clock or moving its notices. */
+    fun changeFocusMode(mode: FocusMode,now: Long=System.currentTimeMillis()): Timer = transaction {
+        advanceLocked(now)
+        val t=timer()
+        if(t.state !in setOf("RUNNING","PAUSED")) return@transaction t
+        val changed=t.copy(mode=mode)
+        writableDatabase.execSQL("UPDATE focus_rounds SET mode=? WHERE id=?",arrayOf(mode.name,t.roundId))
+        writeTimer(changed); changed
+    }
     fun pauseFocus(now: Long=System.currentTimeMillis()): Timer = transaction {
         advanceLocked(now)
         val t=timer()

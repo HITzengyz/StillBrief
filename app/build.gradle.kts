@@ -3,7 +3,7 @@ android {
     namespace = "com.focusinbox.app"
     compileSdk = 35
     bundle { language { enableSplit = false } }
-    defaultConfig { applicationId = "com.focusinbox.app"; minSdk = 26; targetSdk = 35; versionCode = 12; versionName = "2.0"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig { applicationId = "com.focusinbox.app"; minSdk = 26; targetSdk = 35; versionCode = 13; versionName = "2.1"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
 }
