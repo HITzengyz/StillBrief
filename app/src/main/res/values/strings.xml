@@ -282,4 +282,9 @@
     <string name="focus_mode_title">专注模式</string>
     <string name="focus_mode_single_option">单次专注\n到点分析一次，然后停止。</string>
     <string name="focus_mode_loop_option">自动循环\n每 %1$d 分钟分析一次，自动开始下一轮。</string>
+    <string name="codes_enable">验证码立即转发</string>
+    <string name="codes_help">仅飞书机器人生效。收到验证码直接转发，不等专注结束，也不调用 AI；未开始专注时同样可用。保存设置后生效。</string>
+    <string name="codes_record">验证码即时转发</string>
+    <string name="error_codes_disabled">验证码转发已关闭或提醒方式已改为本机，未发送。</string>
+    <string name="error_code_expired">这条验证码已超过 10 分钟，不再转发。</string>
 </resources>

@@ -140,6 +140,9 @@ You don't need an LLM burning tokens on repetitive Wi-Fi status alerts or music 
 
 If you want your phone completely out of sight, switch the reminder method to **Feishu bot** and paste in a group bot **Webhook** (**Feishu group settings → Group bots → Add custom bot**; if you use signature verification, drop the secret into StillBrief's **Advanced settings**). Now your summaries show up right on your computer screen.
 
+**Verification codes without the wait**
+Choose **Feishu bot** as the reminder destination, enable **Forward verification codes immediately**, fill in the Webhook and save. Explicitly marked verification codes go straight to Feishu without waiting for the focus timer or calling AI, even outside a focus session. Switching to on-device notifications disables this route. Delivery records and failures appear on the Notifications tab.
+
 **Pausing or checking in early**
 
 - **Pause timer:** Stepping away for coffee? Pause the clock while StillBrief keeps catching notifications for the current round.

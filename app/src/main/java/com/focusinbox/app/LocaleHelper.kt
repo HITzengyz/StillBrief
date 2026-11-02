@@ -65,6 +65,8 @@ object LocaleHelper {
             ErrorCode.RESPONSE_SIZE -> R.string.error_response_size
             ErrorCode.WEBHOOK_INVALID -> R.string.error_webhook_invalid
             ErrorCode.FEISHU_REJECTED -> R.string.error_feishu_rejected
+            ErrorCode.CODES_DISABLED -> R.string.error_codes_disabled
+            ErrorCode.CODE_EXPIRED -> R.string.error_code_expired
             ErrorCode.CLOUD_DISABLED -> R.string.error_cloud_disabled
             ErrorCode.ANALYSIS_FAILED -> R.string.error_analysis_failed
             ErrorCode.SEND_CONFIG -> R.string.error_send_config

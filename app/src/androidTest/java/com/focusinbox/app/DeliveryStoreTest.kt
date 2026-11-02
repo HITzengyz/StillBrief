@@ -97,7 +97,7 @@ class DeliveryStoreTest {
             old.version=2
         }
         db=Store(context,name,emptySet()) { DeliveryTarget.LOCAL }
-        assertEquals(4,db.readableDatabase.version)
+        assertEquals(5,db.readableDatabase.version)
         val old=db.get(9001)!!
         assertEquals(DeliveryTarget.FEISHU,old.target); assertEquals("旧摘要",old.message); assertEquals("旧错误",old.error)
         assertEquals("旧正文",db.notices(9001).single().body); assertEquals("spam",db.filters().single().value)

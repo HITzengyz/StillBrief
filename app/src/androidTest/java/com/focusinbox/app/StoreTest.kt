@@ -163,7 +163,7 @@ class StoreTest {
                 old.version=1
             }
             Store(context,name,emptySet()).use { upgraded ->
-                assertEquals(4,upgraded.readableDatabase.version)
+                assertEquals(5,upgraded.readableDatabase.version)
                 assertEquals(DeliveryTarget.FEISHU,upgraded.get(1)!!.target)
                 val notice=upgraded.notices(1).single()
                 assertEquals("旧私聊",notice.body); assertEquals(0L,notice.sourceTime); assertFalse(notice.ongoing); assertEquals("",notice.channelId)

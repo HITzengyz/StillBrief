@@ -32,6 +32,11 @@ class Settings(context: Context, prefsName: String = "settings") {
     val destination: DeliveryTarget get() = DeliveryTarget.fromStored(prefs.getString("destination",DeliveryTarget.LOCAL.name)!!)
     val provider: Provider get() = Provider.fromId(prefs.getString("provider",Provider.DEEPSEEK.id)!!)
     var enabled: Boolean get() = prefs.getBoolean("enabled", false); set(v) { synchronized(lock) { prefs.edit().putBoolean("enabled", v).commit() } }
+    var forwardCodes: Boolean get() = prefs.getBoolean("forwardCodes",false); set(v) { synchronized(lock) { prefs.edit().putBoolean("forwardCodes",v).commit() } }
+    val codesActive: Boolean get() = VerificationCodes.active(forwardCodes,destination)
+    fun codeDeliveryConfig(): RunConfig = synchronized(lock) {
+        RunConfig(codesActive,AiConfig(provider,"",provider.endpoint,provider.model,"",language),webhook,signingKey,DeliveryTarget.FEISHU)
+    }
     var focusMode: FocusMode get() = FocusMode.fromStored(prefs.getString("focusMode",null)); set(v) { prefs.edit().putString("focusMode",v.name).commit() }
     var minutes: Int get() = prefs.getInt("minutes", 25); set(v) { prefs.edit().putInt("minutes", v).commit() }
     // Aliases preserve existing local callers while each provider owns its own values.
@@ -54,10 +59,10 @@ class Settings(context: Context, prefsName: String = "settings") {
     /** Only basic save chooses the active provider. Advanced saves never switch it. */
     fun saveBasic(key: String,hook: String,on: Boolean) = saveBasic(provider,key,hook,on)
     fun saveBasic(p: Provider,key: String,hook: String,on: Boolean) = saveBasic(p,key,hook,on,DeliveryTarget.FEISHU)
-    fun saveBasic(p: Provider,key: String,hook: String,on: Boolean,target: DeliveryTarget) = synchronized(lock) {
+    fun saveBasic(p: Provider,key: String,hook: String,on: Boolean,target: DeliveryTarget,codes: Boolean=forwardCodes) = synchronized(lock) {
         val encryptedKey=if(key.isBlank()) null else encrypt(key)
         val editor=prefs.edit().putString("provider.${p.id}.key",encryptedKey)
-            .putString("provider",p.id).putBoolean("enabled",on).putString("destination",target.name)
+            .putString("provider",p.id).putBoolean("enabled",on).putString("destination",target.name).putBoolean("forwardCodes",codes)
         if(target==DeliveryTarget.FEISHU) editor.putString("hook",if(hook.isBlank()) null else encrypt(hook))
         editor.commit()
         Unit
@@ -96,7 +101,7 @@ class Settings(context: Context, prefsName: String = "settings") {
         prefs.edit().putString(name,if(value.isBlank()) null else encrypt(value)).commit()
     }
     fun clearSecrets() = synchronized(lock) {
-        val editor=prefs.edit().remove("key").remove("hook").remove("sign").putBoolean("enabled",false)
+        val editor=prefs.edit().remove("key").remove("hook").remove("sign").putBoolean("enabled",false).putBoolean("forwardCodes",false)
         Provider.entries.forEach { editor.remove("provider.${it.id}.key") }
         editor.commit()
         Unit

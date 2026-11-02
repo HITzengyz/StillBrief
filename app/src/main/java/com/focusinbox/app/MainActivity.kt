@@ -260,13 +260,14 @@ class MainActivity : Activity() {
             if(batches.isEmpty()) label(tr(R.string.history_empty),13f)
             batches.forEach { b ->
                 val c=card(); label("#${b.id} · ${stateName(b.state)}",16f,true,c); label(time(b.created),12f,parent=c); label(tr(R.string.batch_destination,targetName(b.target)),12f,parent=c)
+                if(b.instantKey.isNotEmpty()) label(tr(R.string.codes_record),12f,parent=c)
                 if(b.roundId>0) label(tr(R.string.batch_focus_window,time(b.roundStart),if(b.roundEnd>0) time(b.roundEnd) else tr(R.string.focus_window_open)),12f,parent=c)
                 if(b.message.isNotBlank()) label(b.message,14f,parent=c)
                 if(b.error.isNotBlank()) label(LocaleHelper.renderError(this,b.error),14f,parent=c)
                 val unprocessed=b.state in setOf("QUEUED","FAILED")
                 val records=if(unprocessed) db.visibleNotices(b.id) else db.notices(b.id)
                 button(tr(R.string.batch_records,records.size),c) { showNotices(Store(this).use { if(unprocessed) it.visibleNotices(b.id) else it.notices(b.id) },!unprocessed) }
-                if(b.state in setOf("FAILED","SEND_FAILED","UNCERTAIN")) button(tr(R.string.retry_manual),c) {
+                if(b.state in setOf("FAILED","SEND_FAILED","UNCERTAIN") && (b.instantKey.isEmpty() || (settings.codesActive && VerificationCodes.fresh(b.created,System.currentTimeMillis())))) button(tr(R.string.retry_manual),c) {
                     val requested=settings.destination
                     val changing=requested!=b.target
                     val reason=if(b.state=="UNCERTAIN") tr(R.string.retry_uncertain_target,targetName(b.target)) else if(b.state=="SEND_FAILED") tr(R.string.retry_send) else tr(R.string.retry_analysis)
@@ -367,6 +368,8 @@ class MainActivity : Activity() {
         }
         val remoteArea=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; visibility=if(selectedTarget==DeliveryTarget.FEISHU) View.VISIBLE else View.GONE }
         content.addView(remoteArea)
+        val codes=Switch(this).apply { text=tr(R.string.codes_enable); isChecked=retainedForm?.forwardCodes ?: settings.forwardCodes }; remoteArea.addView(codes)
+        label(tr(R.string.codes_help),12f,parent=remoteArea)
         val hook=field(tr(R.string.webhook_label),if(remoteLoaded) retainedForm?.webhook ?: secret { settings.webhook } else "",true,parent=remoteArea)
         label(tr(R.string.webhook_help),12f,parent=remoteArea)
         val localArea=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; visibility=if(selectedTarget==DeliveryTarget.LOCAL) View.VISIBLE else View.GONE }
@@ -378,10 +381,10 @@ class MainActivity : Activity() {
         button(tr(R.string.save_settings),primary=true) {
             when {
                 enabled.isChecked && api.text.isBlank() -> toast(tr(R.string.configure_ai_required))
-                enabled.isChecked && selectedTarget==DeliveryTarget.FEISHU && !Network.validUrl(hook.text.toString().trim(),true) -> toast(tr(R.string.configure_required))
+                (enabled.isChecked || codes.isChecked) && selectedTarget==DeliveryTarget.FEISHU && !Network.validUrl(hook.text.toString().trim(),true) -> toast(tr(R.string.configure_required))
                 enabled.isChecked && !settings.enabled && enabled.tag!=true -> toast(tr(R.string.consent_required))
                 else -> try {
-                    settings.saveBasic(selected,api.text.toString().trim(),hook.text.toString().trim(),enabled.isChecked,selectedTarget)
+                    settings.saveBasic(selected,api.text.toString().trim(),hook.text.toString().trim(),enabled.isChecked,selectedTarget,codes.isChecked)
                     providerHint.text=tr(R.string.provider_active_hint,settings.provider.title)
                     targetHint.text=tr(R.string.delivery_saved_hint,targetName(settings.destination))
                     toast(tr(R.string.basic_saved,selected.title))
@@ -444,7 +447,7 @@ class MainActivity : Activity() {
         captureForm={
             val saved=drafts.toMutableMap()
             saved[selected]=AiConfig(selected,api.text.toString(),endpoint.text.toString(),model.text.toString(),prompt.text.toString(),settings.language)
-            SettingsDraft(selected,saved,hook.text.toString(),sign.text.toString(),prompt.text.toString(),enabled.isChecked,enabled.tag==true,advanced.visibility==View.VISIBLE,selectedTarget,remoteLoaded)
+            SettingsDraft(selected,saved,hook.text.toString(),sign.text.toString(),prompt.text.toString(),enabled.isChecked,enabled.tag==true,advanced.visibility==View.VISIBLE,selectedTarget,remoteLoaded,codes.isChecked)
         }
         languagePicker.onItemSelectedListener=object: AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit

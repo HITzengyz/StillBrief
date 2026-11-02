@@ -27,8 +27,10 @@ object BatchEngine {
         TimerEngine.restore(c)
     }
     fun enqueue(c: Context,id: Long,retry: Boolean=false) {
-        WorkManager.getInstance(c).enqueueUniqueWork("batch-$id",if(retry) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP,
-            OneTimeWorkRequestBuilder<BatchWorker>().setInputData(workDataOf("id" to id)).build())
+        val request=OneTimeWorkRequestBuilder<BatchWorker>().setInputData(workDataOf("id" to id))
+        if(android.os.Build.VERSION.SDK_INT>=31 && Store(c).use { it.get(id)?.instantKey?.isNotEmpty()==true })
+            request.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+        WorkManager.getInstance(c).enqueueUniqueWork("batch-$id",if(retry) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP,request.build())
     }
     fun resume(c: Context) { Store(c).use { it.claimableBatches().forEach { b -> enqueue(c,b.id) } } }
     fun retry(c: Context,id: Long,target: DeliveryTarget?=null) { if(Store(c).use { it.retry(id,target) }) enqueue(c,id,true) }
@@ -60,11 +62,16 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
             b=db.get(id)?:return Result.success()
             if(b.state=="READY" && db.transition(id,"READY","SENDING")) {
                 try {
-                    val config=frozen ?: s.snapshot(b.target)
-                    demand(s.enabled && config.enabled,ErrorCode.CLOUD_DISABLED)
-                    val sent=DeliveryDispatcher.send(b,config,
-                        local={ batchId,message,language -> LocalNotifier.post(applicationContext,batchId,message,language) },
-                        feishu={ snapshot,message -> Network.send(snapshot,message) })
+                    val sent=if(b.instantKey.isNotEmpty()) {
+                        CodeDelivery.send(b,s)
+                        true
+                    } else {
+                        val config=frozen ?: s.snapshot(b.target)
+                        demand(s.enabled && config.enabled,ErrorCode.CLOUD_DISABLED)
+                        DeliveryDispatcher.send(b,config,
+                            local={ batchId,message,language -> LocalNotifier.post(applicationContext,batchId,message,language) },
+                            feishu={ snapshot,message -> Network.send(snapshot,message) })
+                    }
                     db.transition(id,"SENDING",if(sent) "DONE" else "EMPTY")
                 } catch(e: Exception) {
                     val uncertain=DeliveryDispatcher.failureState(b.target,e)=="UNCERTAIN"

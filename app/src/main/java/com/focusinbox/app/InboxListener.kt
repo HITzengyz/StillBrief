@@ -16,11 +16,17 @@ class InboxListener : NotificationListenerService() {
         var timerChanged=false
         Store(this).use { db ->
             val before=db.timer()
-            if(before.state=="IDLE") return
+            val settings=Settings(this)
+            if(before.state=="IDLE" && !settings.codesActive) return
             val echoes=if(NotificationParser.isFeishu(sbn.packageName)) db.feishuEchoes() else emptyList()
             val parsed=NotificationParser.parse(sbn.notification,sbn.packageName,android.provider.Telephony.Sms.getDefaultSmsPackage(this),echoes) ?: return
             val label=try { packageManager.getApplicationLabel(packageManager.getApplicationInfo(sbn.packageName,0)).toString() } catch(_: android.content.pm.PackageManager.NameNotFoundException) { sbn.packageName }
-            db.collect(Notice(key=sbn.key,pkg=sbn.packageName,app=label,title=parsed.title,body=parsed.body,at=System.currentTimeMillis(),kind=parsed.kind,hidden=parsed.hidden,summary=parsed.summary,sourceTime=sbn.postTime,ongoing=sbn.isOngoing,channelId=sbn.notification.channelId.orEmpty()))
+            val notice=Notice(key=sbn.key,pkg=sbn.packageName,app=label,title=parsed.title,body=parsed.body,at=System.currentTimeMillis(),kind=parsed.kind,hidden=parsed.hidden,summary=parsed.summary,sourceTime=sbn.postTime,ongoing=sbn.isOngoing,channelId=sbn.notification.channelId.orEmpty())
+            val latest=if(settings.codesActive) NotificationParser.parse(sbn.notification,sbn.packageName,android.provider.Telephony.Sms.getDefaultSmsPackage(this),echoes,latestOnly=true) else null
+            val codeNotice=latest?.let { notice.copy(title=it.title,body=it.body,hidden=it.hidden) }
+            val code=if(codeNotice!=null && settings.codesActive && !codeNotice.hidden && !codeNotice.summary && VerificationCodes.fresh(sbn.postTime,notice.at)) VerificationCodes.extract(codeNotice.title,codeNotice.body) else null
+            val immediate=if(code!=null && codeNotice!=null) db.queueCode(codeNotice,code,settings.language) else null
+            if(immediate!=null) BatchEngine.enqueue(this,immediate) else db.collect(notice)
             timerChanged=db.timer().token!=before.token
         }
         if(timerChanged) TimerEngine.restore(this)

@@ -282,4 +282,9 @@
     <string name="focus_mode_title">Focus mode</string>
     <string name="focus_mode_single_option">Single\nAnalyze once when the timer ends, then stop.</string>
     <string name="focus_mode_loop_option">Auto-repeat\nAnalyze every %1$d minutes and start the next round automatically.</string>
+    <string name="codes_enable">Forward verification codes immediately</string>
+    <string name="codes_help">Feishu bot only. Forward codes without waiting for the focus timer or using AI, even outside a focus session. Takes effect after saving settings.</string>
+    <string name="codes_record">Instant verification code</string>
+    <string name="error_codes_disabled">Code forwarding is off or reminders are now on-device. Nothing was sent.</string>
+    <string name="error_code_expired">This code is over 10 minutes old and will not be forwarded.</string>
 </resources>

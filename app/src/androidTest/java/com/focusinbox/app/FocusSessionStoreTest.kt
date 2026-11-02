@@ -156,7 +156,7 @@ class FocusSessionStoreTest {
             old.version=3
         }
         db=Store(context,name,emptySet()) { DeliveryTarget.LOCAL }
-        assertEquals(4,db.readableDatabase.version); assertEquals("IDLE",db.timer().state); assertTrue(db.timer().token>123)
+        assertEquals(5,db.readableDatabase.version); assertEquals("IDLE",db.timer().state); assertTrue(db.timer().token>123)
         assertEquals(0,count("latest").toInt()); assertEquals(listOf("history"),db.recent().map { it.body })
         assertEquals(DeliveryTarget.LOCAL,db.get(9001)!!.target); assertEquals("summary",db.get(9001)!!.message)
         assertEquals("FAILED",db.get(9002)!!.state); assertEquals("@error:ANALYSIS_INTERRUPTED",db.get(9002)!!.error)

@@ -14,7 +14,7 @@ object NotificationParser {
     fun isFeishu(pkg: String)=pkg in larkPackages
     data class Parsed(val title: String, val body: String, val kind: String, val hidden: Boolean, val summary: Boolean)
 
-    fun parse(notification: Notification, pkg: String, defaultSmsPackage: String? = null,sentSummaries: Collection<String> = emptyList()): Parsed? {
+    fun parse(notification: Notification, pkg: String, defaultSmsPackage: String? = null,sentSummaries: Collection<String> = emptyList(),latestOnly: Boolean=false): Parsed? {
         val extras = notification.extras ?: Bundle.EMPTY
         val isLark = pkg in larkPackages
         var suppressed = false
@@ -31,7 +31,7 @@ object NotificationParser {
         }
         val title = clean(extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty())
         @Suppress("DEPRECATION")
-        val bundles = extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.mapNotNull { it as? Bundle }.orEmpty()
+        val bundles = extras.getParcelableArray(Notification.EXTRA_MESSAGES)?.mapNotNull { it as? Bundle }.orEmpty().let { if(latestOnly) it.takeLast(1) else it }
         val messaging = bundles.isNotEmpty() || extras.getString(Notification.EXTRA_TEMPLATE) == "android.app.Notification\$MessagingStyle"
         // Explicit false describes a private conversation even if the app also provides a title.
         val group = if (extras.containsKey(GROUP)) extras.getBoolean(GROUP)
@@ -69,7 +69,7 @@ object NotificationParser {
         val fallback=cleanedFallback.filter { (raw,visible) ->
             visible.isNotBlank() && !(suppressed && FeishuEchoes.derivedPreview(raw,sentSummaries))
         }.map { it.second }
-        val candidates = messageTexts + fallback
+        val candidates = messageTexts + if(latestOnly && messageTexts.isNotEmpty()) emptyList() else fallback
         // Keep all distinct visible lines; expanded text often repeats collapsed or MessagingStyle content.
         val parts = candidates.filterIndexed { i, text ->
             candidates.withIndex().none { (j, other) -> j != i && other.contains(text) && (other.length > text.length || j < i) }

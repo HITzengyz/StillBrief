@@ -6,8 +6,8 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
-data class Batch(val id: Long, val state: String, val created: Long, val message: String, val error: String, val ids: String,val target: DeliveryTarget=DeliveryTarget.FEISHU,val roundId: Long=0,val roundStart: Long=0,val roundEnd: Long=0,val mode: FocusMode=FocusMode.SINGLE)
-class Store(context: Context, databaseName: String = "inbox.db", private val legacyExcluded: Set<String> = Settings(context).excluded,private val targetProvider: ()->DeliveryTarget = { Settings(context).destination }) : SQLiteOpenHelper(context, databaseName, null, 4) {
+data class Batch(val id: Long, val state: String, val created: Long, val message: String, val error: String, val ids: String,val target: DeliveryTarget=DeliveryTarget.FEISHU,val roundId: Long=0,val roundStart: Long=0,val roundEnd: Long=0,val mode: FocusMode=FocusMode.SINGLE,val instantKey: String="")
+class Store(context: Context, databaseName: String = "inbox.db", private val legacyExcluded: Set<String> = Settings(context).excluded,private val targetProvider: ()->DeliveryTarget = { Settings(context).destination }) : SQLiteOpenHelper(context, databaseName, null, 5) {
     companion object { private val lock = Any() }
     private val appContext=context.applicationContext
     private val columns="id,nkey,pkg,app,title,body,at,kind,hidden,summary,sourceTime,ongoing,channelId"
@@ -16,11 +16,12 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         db.execSQL("CREATE TABLE notices(id INTEGER PRIMARY KEY AUTOINCREMENT, nkey TEXT NOT NULL, pkg TEXT NOT NULL, app TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, at INTEGER NOT NULL, kind TEXT NOT NULL, hidden INTEGER NOT NULL, summary INTEGER NOT NULL, sourceTime INTEGER NOT NULL DEFAULT 0, ongoing INTEGER NOT NULL DEFAULT 0, channelId TEXT NOT NULL DEFAULT '', fingerprint TEXT NOT NULL, batch INTEGER, roundId INTEGER NOT NULL DEFAULT 0)")
         db.execSQL("CREATE INDEX notices_batch ON notices(batch)")
         db.execSQL("CREATE TABLE latest(nkey TEXT PRIMARY KEY, fingerprint TEXT NOT NULL)")
-        db.execSQL("CREATE TABLE batches(id INTEGER PRIMARY KEY AUTOINCREMENT, state TEXT NOT NULL, created INTEGER NOT NULL, message TEXT NOT NULL DEFAULT '', error TEXT NOT NULL DEFAULT '', ids TEXT NOT NULL DEFAULT '', target TEXT NOT NULL DEFAULT 'FEISHU', roundId INTEGER NOT NULL DEFAULT 0)")
+        db.execSQL("CREATE TABLE batches(id INTEGER PRIMARY KEY AUTOINCREMENT, state TEXT NOT NULL, created INTEGER NOT NULL, message TEXT NOT NULL DEFAULT '', error TEXT NOT NULL DEFAULT '', ids TEXT NOT NULL DEFAULT '', target TEXT NOT NULL DEFAULT 'FEISHU', roundId INTEGER NOT NULL DEFAULT 0, instantKey TEXT NOT NULL DEFAULT '')")
         db.execSQL("CREATE TABLE timer(id INTEGER PRIMARY KEY CHECK(id=1), state TEXT NOT NULL, endAt INTEGER NOT NULL, remaining INTEGER NOT NULL, token INTEGER NOT NULL, startAt INTEGER NOT NULL DEFAULT 0, mode TEXT NOT NULL DEFAULT 'SINGLE', intervalMs INTEGER NOT NULL DEFAULT 1500000, roundId INTEGER NOT NULL DEFAULT 0)")
         db.execSQL("INSERT INTO timer(id,state,endAt,remaining,token) VALUES(1,'IDLE',0,0,0)")
         createRounds(db)
         createFilters(db)
+        createCodeNotifications(db)
     }
     private fun createFilters(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE filters(id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, pkg TEXT NOT NULL, app TEXT NOT NULL, value TEXT NOT NULL, UNIQUE(kind,pkg,value))")
@@ -30,8 +31,14 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         db.execSQL("CREATE TABLE focus_rounds(id INTEGER PRIMARY KEY AUTOINCREMENT,startAt INTEGER NOT NULL,endAt INTEGER NOT NULL,mode TEXT NOT NULL,intervalMs INTEGER NOT NULL,closed INTEGER NOT NULL DEFAULT 0)")
         db.execSQL("CREATE INDEX notices_round ON notices(roundId,batch)")
     }
+    private fun createCodeNotifications(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE code_notifications(nkey TEXT PRIMARY KEY,batchId INTEGER NOT NULL)")
+    }
     override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
-        check(old in 1..3 && new==4) { "Unsupported database migration" }
+        check(old in 1..4 && new==5) { "Unsupported database migration" }
+        db.execSQL("ALTER TABLE batches ADD COLUMN instantKey TEXT NOT NULL DEFAULT ''")
+        createCodeNotifications(db)
+        if(old==4) return
         if(old<2) {
             db.execSQL("ALTER TABLE notices ADD COLUMN ongoing INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE notices ADD COLUMN channelId TEXT NOT NULL DEFAULT ''")
@@ -96,7 +103,10 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
             db.setTransactionSuccessful(); result
         } finally { db.endTransaction() }
     }
-    fun removeLatest(key: String) = synchronized(lock) { writableDatabase.delete("latest","nkey=?",arrayOf(key)) }
+    fun removeLatest(key: String) = synchronized(lock) {
+        writableDatabase.delete("latest","nkey=?",arrayOf(key))
+        writableDatabase.delete("code_notifications","nkey=?",arrayOf(key))
+    }
     /** The listener's acceptance timestamp is chosen under the same lock as round closing. */
     fun collect(n: Notice): Boolean = synchronized(lock) { insert(n.copy(at=System.currentTimeMillis())) }
     fun insert(n: Notice): Boolean = transaction {
@@ -114,9 +124,32 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         db.execSQL("INSERT OR REPLACE INTO latest(nkey,fingerprint) VALUES(?,?)",arrayOf(n.key,n.fingerprint()))
         true
     }
-    private val batchColumns="b.id,b.state,b.created,b.message,b.error,b.ids,b.target,b.roundId,COALESCE(r.startAt,0),COALESCE(r.endAt,0),COALESCE(r.mode,'SINGLE')"
+    /** Codes get their own ready-to-send record; the active focus window is never changed. */
+    fun queueCode(n: Notice,code: String,language: UiLanguage): Long? = transaction {
+        if(isFiltered(n) || n.summary || n.hidden) return@transaction null
+        val key=VerificationCodes.key(n.pkg,code)
+        val active=readableDatabase.rawQuery("SELECT b.id FROM code_notifications c JOIN batches b ON b.id=c.batchId WHERE c.nkey=? AND b.instantKey=?",arrayOf(n.key,key)).use { if(it.moveToFirst()) it.getLong(0) else null }
+        if(active!=null) return@transaction active
+        val old=writableDatabase.rawQuery("SELECT id FROM batches WHERE instantKey=? AND created>? ORDER BY id DESC LIMIT 1",arrayOf(key,(n.at-VerificationCodes.MAX_AGE_MS).toString())).use { if(it.moveToFirst()) it.getLong(0) else null }
+        if(old!=null) {
+            writableDatabase.execSQL("INSERT OR REPLACE INTO code_notifications VALUES(?,?)",arrayOf(n.key,old))
+            return@transaction old
+        }
+        val id=writableDatabase.insertOrThrow("batches",null,ContentValues().apply {
+            put("state","READY"); put("created",n.sourceTime.takeIf { it>0 } ?: n.at); put("target","FEISHU")
+            put("instantKey",key); put("message",VerificationCodes.message(n,code,language))
+        })
+        writableDatabase.insertOrThrow("notices",null,ContentValues().apply {
+            put("nkey",n.key); put("pkg",n.pkg); put("app",n.app); put("title",n.title); put("body",n.body)
+            put("at",n.at); put("kind",n.kind); put("hidden",0); put("summary",0)
+            put("sourceTime",n.sourceTime); put("channelId",n.channelId); put("fingerprint",n.fingerprint()); put("batch",id)
+        })
+        writableDatabase.execSQL("INSERT OR REPLACE INTO code_notifications VALUES(?,?)",arrayOf(n.key,id))
+        id
+    }
+    private val batchColumns="b.id,b.state,b.created,b.message,b.error,b.ids,b.target,b.roundId,COALESCE(r.startAt,0),COALESCE(r.endAt,0),COALESCE(r.mode,'SINGLE'),b.instantKey"
     private val batchJoin="batches b LEFT JOIN focus_rounds r ON r.id=b.roundId"
-    private fun batch(c: Cursor)=Batch(c.getLong(0),c.getString(1),c.getLong(2),c.getString(3),c.getString(4),c.getString(5),DeliveryTarget.fromStored(c.getString(6)),c.getLong(7),c.getLong(8),c.getLong(9),FocusMode.fromStored(c.getString(10)))
+    private fun batch(c: Cursor)=Batch(c.getLong(0),c.getString(1),c.getLong(2),c.getString(3),c.getString(4),c.getString(5),DeliveryTarget.fromStored(c.getString(6)),c.getLong(7),c.getLong(8),c.getLong(9),FocusMode.fromStored(c.getString(10)),c.getString(11))
     fun batches(): List<Batch> = readBatches("SELECT $batchColumns FROM $batchJoin ORDER BY b.id DESC LIMIT 80")
     fun claimableBatches(): List<Batch> = readBatches("SELECT $batchColumns FROM $batchJoin WHERE b.state IN ('QUEUED','READY') ORDER BY b.id")
     private fun readBatches(sql: String)=readableDatabase.rawQuery(sql,null).use { c -> buildList { while(c.moveToNext()) add(batch(c)) } }
@@ -144,6 +177,7 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
     }
     fun retry(id: Long,target: DeliveryTarget?=null): Boolean = synchronized(lock) {
         val b=get(id) ?: return@synchronized false
+        if(b.instantKey.isNotEmpty() && target!=null && target!=DeliveryTarget.FEISHU) return@synchronized false
         val next=when(b.state) { "FAILED" -> "QUEUED"; "SEND_FAILED","UNCERTAIN" -> "READY"; else -> return@synchronized false }
         val values=ContentValues().apply { put("state",next); put("error",""); if(target!=null) put("target",target.name) }
         writableDatabase.update("batches",values,"id=? AND state=?",arrayOf(id.toString(),b.state))==1
@@ -159,13 +193,14 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         val cutoff=System.currentTimeMillis()-30L*24*60*60*1000
         writableDatabase.execSQL("DELETE FROM notices WHERE batch IN (SELECT id FROM batches WHERE state IN ('DONE','EMPTY') AND created<?)",arrayOf(cutoff))
         writableDatabase.execSQL("DELETE FROM batches WHERE state IN ('DONE','EMPTY') AND created<?",arrayOf(cutoff))
+        writableDatabase.execSQL("DELETE FROM code_notifications WHERE batchId NOT IN (SELECT id FROM batches)")
         writableDatabase.execSQL("DELETE FROM focus_rounds WHERE closed=1 AND NOT EXISTS (SELECT 1 FROM batches WHERE roundId=focus_rounds.id)")
     }
     fun clear(): Boolean = synchronized(lock) {
         val busy=readableDatabase.rawQuery("SELECT 1 FROM batches WHERE state IN ('ANALYZING','SENDING') LIMIT 1",null).use { it.moveToFirst() }
         if(busy) return@synchronized false
         writableDatabase.beginTransaction()
-        try { writableDatabase.execSQL("DELETE FROM notices"); writableDatabase.execSQL("DELETE FROM latest"); writableDatabase.execSQL("DELETE FROM batches"); writableDatabase.execSQL("DELETE FROM focus_rounds WHERE id<>(SELECT roundId FROM timer WHERE id=1)"); writableDatabase.setTransactionSuccessful() } finally { writableDatabase.endTransaction() }; true
+        try { writableDatabase.execSQL("DELETE FROM code_notifications"); writableDatabase.execSQL("DELETE FROM notices"); writableDatabase.execSQL("DELETE FROM latest"); writableDatabase.execSQL("DELETE FROM batches"); writableDatabase.execSQL("DELETE FROM focus_rounds WHERE id<>(SELECT roundId FROM timer WHERE id=1)"); writableDatabase.setTransactionSuccessful() } finally { writableDatabase.endTransaction() }; true
     }
     data class Timer(val state: String,val end: Long,val remaining: Long,val token: Long,val start: Long=0,val mode: FocusMode=FocusMode.SINGLE,val interval: Long=1500000,val roundId: Long=0)
     fun timer(): Timer = readableDatabase.rawQuery("SELECT state,endAt,remaining,token,startAt,mode,intervalMs,roundId FROM timer WHERE id=1",null).use { it.moveToFirst(); Timer(it.getString(0),it.getLong(1),it.getLong(2),it.getLong(3),it.getLong(4),FocusMode.fromStored(it.getString(5)),it.getLong(6),it.getLong(7)) }
