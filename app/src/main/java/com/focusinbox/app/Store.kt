@@ -156,9 +156,10 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
     fun feishuEchoes(): List<String> = readableDatabase.rawQuery("SELECT message FROM batches WHERE target='FEISHU' AND state IN ('SENDING','DONE','UNCERTAIN') AND message<>''",null).use { c -> buildList { while(c.moveToNext()) add(c.getString(0)) } }
     fun get(id: Long): Batch? = readableDatabase.rawQuery("SELECT $batchColumns FROM $batchJoin WHERE b.id=?",arrayOf(id.toString())).use { if(it.moveToFirst()) batch(it) else null }
     /** Only current-round unassigned notices can enter a manual analysis. Failed older batches never block it. */
-    fun createBatch(now: Long=System.currentTimeMillis()): Long? = transaction {
+    fun createBatch(now: Long=System.currentTimeMillis(),expectedToken: Long?=null): Long? = transaction {
         advanceLocked(now)
         val t=timer()
+        if(expectedToken!=null && t.token!=expectedToken) return@transaction null
         if(t.state !in setOf("RUNNING","PAUSED")) return@transaction null
         snapshotLocked(t.roundId,now) ?: writableDatabase.rawQuery("SELECT id FROM batches WHERE roundId=? AND state IN ('QUEUED','ANALYZING') ORDER BY id DESC LIMIT 1",arrayOf(t.roundId.toString())).use { if(it.moveToFirst()) it.getLong(0) else null }
     }
@@ -245,9 +246,10 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         writableDatabase.execSQL("UPDATE focus_rounds SET endAt=0 WHERE id=?",arrayOf(t.roundId))
         writeTimer(paused); paused
     }
-    fun stopFocus(now: Long=System.currentTimeMillis()): Boolean = transaction {
+    fun stopFocus(now: Long=System.currentTimeMillis(),expectedToken: Long?=null): Boolean = transaction {
         advanceLocked(now)
         val t=timer()
+        if(expectedToken!=null && t.token!=expectedToken) return@transaction false
         if(t.state !in setOf("RUNNING","PAUSED")) return@transaction false
         closeRound(t,now)
         writeTimer(t.copy(state="IDLE",end=0,remaining=0,token=nextToken(t,now),roundId=0,start=0))

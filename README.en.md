@@ -130,6 +130,22 @@ Flip your phone face down. If nothing pops up, you're good to keep going.
   <img src="docs/images/duration.png" width="280" alt="Circular duration selector and minute presets">
 </p>
 
+## Control focus from your home screen
+
+Long-press an empty area of your home screen, find **StillBrief** in the widget picker, and add the **4×1 bar** or **2×2 tile**.
+
+The countdown stays in sync with the app. Buttons work directly, without a confirmation dialog or opening the app:
+
+- **Analyze** reviews pending messages from this round while the timer and loop keep going.
+- **End & analyze** ends this round, analyzes the remaining messages, and stops the loop.
+- When idle, tap **Start focus**; when paused, tap **Resume**. Tap the countdown to open Focus and change the duration or mode.
+
+Analyze is disabled when there is nothing pending or an analysis is already running. Both widgets control the same focus session.
+
+<p><img src="docs/images/widgets.png" width="360" alt="Actual 4×1 and 2×2 Android widget controls with demonstration data"></p>
+
+*Actual controls rendered in an Android widget host with demonstration state.*
+
 ## Tweaking it to your taste
 
 **Muting noisy apps and status updates**

@@ -30,5 +30,6 @@ class InboxListener : NotificationListenerService() {
             timerChanged=db.timer().token!=before.token
         }
         if(timerChanged) TimerEngine.restore(this)
+        FocusWidgets.refresh(this)
     }
 }

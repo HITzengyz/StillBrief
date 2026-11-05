@@ -95,7 +95,7 @@ class MainActivity : Activity() {
         if(page==2) refreshLocalStatus()
         handler.removeCallbacks(tick); handler.post(tick)
     }
-    override fun onPause() { apiKeyField?.conceal(); resumed=false; handler.removeCallbacks(tick); pageTransition.finish(); super.onPause() }
+    override fun onPause() { apiKeyField?.conceal(); resumed=false; handler.removeCallbacks(tick); pageTransition.finish(); FocusWidgets.refresh(this); super.onPause() }
     override fun onDestroy() { handler.removeCallbacks(tick); pageTransition.clear(); clearPickers(); dismissDialogs(); captureForm=null; super.onDestroy() }
     private fun label(text: String,size: Float=15f,bold: Boolean=false,parent: LinearLayout=content): TextView = TextView(this).also {
         it.text=text; it.textSize=size; it.setTextColor(ink); it.setPadding(0,dp(6),0,dp(6)); if(bold) it.setTypeface(null,Typeface.BOLD); parent.addView(it)
@@ -214,7 +214,7 @@ class MainActivity : Activity() {
     }
     private fun applyDuration(minutes: Int,current: Boolean) {
         if(current) toast(if(TimerEngine.adjustRemaining(this,minutes)) tr(R.string.duration_changed) else tr(R.string.duration_finished))
-        else { settings.minutes=minutes; toast(tr(R.string.duration_default_saved,minutes)) }
+        else { settings.minutes=minutes; FocusWidgets.refresh(this); toast(tr(R.string.duration_default_saved,minutes)) }
         show(0)
     }
     private fun update() {
@@ -385,6 +385,7 @@ class MainActivity : Activity() {
                 enabled.isChecked && !settings.enabled && enabled.tag!=true -> toast(tr(R.string.consent_required))
                 else -> try {
                     settings.saveBasic(selected,api.text.toString().trim(),hook.text.toString().trim(),enabled.isChecked,selectedTarget,codes.isChecked)
+                    FocusWidgets.refresh(this)
                     providerHint.text=tr(R.string.provider_active_hint,settings.provider.title)
                     targetHint.text=tr(R.string.delivery_saved_hint,targetName(settings.destination))
                     toast(tr(R.string.basic_saved,selected.title))
@@ -582,6 +583,13 @@ class MainActivity : Activity() {
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); handleNotificationIntent(intent) }
     private fun handleNotificationIntent(incoming: Intent?) {
+        if(incoming?.action==FocusWidgets.OPEN_ACTION) {
+            val page=incoming.getIntExtra("widget_page",0).coerceIn(0,2)
+            setIntent(Intent(this,MainActivity::class.java))
+            noticeDialog?.dismiss()
+            show(page)
+            return
+        }
         val id=LocalNotifier.batchFromIntent(incoming) ?: return
         setIntent(Intent(this,MainActivity::class.java))
         noticeDialog?.dismiss(); show(1)

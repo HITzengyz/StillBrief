@@ -40,6 +40,7 @@ object LocaleHelper {
     }
     fun change(activity: Activity,language: UiLanguage) {
         Settings(activity).language=language
+        FocusWidgets.refresh(activity)
         if(Build.VERSION.SDK_INT>=33) {
             activity.getSystemService(LocaleManager::class.java).applicationLocales=LocaleList.forLanguageTags(language.tag)
         }

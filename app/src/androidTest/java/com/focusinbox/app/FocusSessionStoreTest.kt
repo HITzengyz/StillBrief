@@ -19,6 +19,27 @@ class FocusSessionStoreTest {
     @After fun after() { db.close(); context.deleteDatabase(name) }
     private fun n(at: Long,body: String="message",key: String="key")=Notice(key=key,pkg="chat",app="Chat",title="Friend",body=body,at=at,kind="private",sourceTime=at)
     private fun count(table: String)=db.readableDatabase.rawQuery("SELECT COUNT(*) FROM $table",null).use { it.moveToFirst(); it.getLong(0) }
+    @Test fun staleWidgetCommandsAtBoundaryCannotAffectNextLoopRound() {
+        val first=db.startFocus(1,FocusMode.LOOP,1000)
+        db.insert(n(2000,"first"))
+        assertFalse(db.stopFocus(61000,expectedToken=first.token))
+        val next=db.timer()
+        assertEquals("RUNNING",next.state); assertEquals(61000L,next.start)
+        db.insert(n(62000,"next"))
+        assertNull(db.createBatch(63000,expectedToken=first.token))
+        assertEquals(1L,db.pendingCount()); assertEquals(1,db.batches().size)
+        assertNotNull(db.createBatch(64000,expectedToken=next.token))
+        assertTrue(db.stopFocus(65000,expectedToken=next.token))
+        assertEquals("IDLE",db.timer().state)
+    }
+    @Test fun analyzeAtDeadlineOnlySettlesOldRoundAndDoesNotSnapshotNewRound() {
+        val first=db.startFocus(1,FocusMode.LOOP,1000)
+        db.insert(n(2000,"first"))
+        assertNull(db.createBatch(61000,expectedToken=first.token))
+        assertEquals("RUNNING",db.timer().state)
+        assertNotEquals(first.token,db.timer().token)
+        assertEquals(1,db.batches().size)
+    }
     @Test fun singleWindowIsStartInclusiveEndExclusiveAndIdleNeverCollects() {
         assertFalse(db.insert(n(999))); assertNull(db.createBatch(999))
         val t=db.startFocus(1,FocusMode.SINGLE,1000)

@@ -1,0 +1,19 @@
+<resources>
+    <string name="widget_open_focus">打开息间专注页</string>
+    <string name="widget_loop">自动循环</string>
+    <string name="widget_single">单次</string>
+    <string name="widget_focusing">专注中</string>
+    <string name="widget_paused">已暂停</string>
+    <string name="widget_idle">准备专注</string>
+    <string name="widget_analyzing">正在分析</string>
+    <string name="widget_failed">分析未完成 · 查看</string>
+    <string name="widget_delivered">摘要已发送</string>
+    <string name="widget_quiet">无需提醒</string>
+    <string name="widget_setup_hint">请先完成设置</string>
+    <string name="widget_start">开始专注</string>
+    <string name="widget_resume">继续专注</string>
+    <string name="widget_analyze">立即分析</string>
+    <string name="widget_end">结束并分析</string>
+    <string name="widget_setup">完成设置</string>
+    <string name="widget_end_compact">结束\n并分析</string>
+</resources>

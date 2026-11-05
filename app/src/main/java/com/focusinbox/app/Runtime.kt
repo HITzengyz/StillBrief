@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 
 class FocusApp : Application() {
     override fun attachBaseContext(base: Context) { super.attachBaseContext(LocaleHelper.wrap(base)) }
-    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) { super.onConfigurationChanged(newConfig); LocaleHelper.current(this) }
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) { super.onConfigurationChanged(newConfig); LocaleHelper.current(this); FocusWidgets.refresh(this) }
     override fun onCreate() {
         super.onCreate()
         LocaleHelper.initialize(this)
@@ -22,8 +22,8 @@ class FocusApp : Application() {
     }
 }
 object BatchEngine {
-    fun trigger(c: Context) {
-        Store(c).use { it.createBatch() }
+    fun trigger(c: Context,expectedToken: Long?=null) {
+        Store(c).use { it.createBatch(expectedToken=expectedToken) }
         TimerEngine.restore(c)
     }
     fun enqueue(c: Context,id: Long,retry: Boolean=false) {
@@ -31,6 +31,7 @@ object BatchEngine {
         if(android.os.Build.VERSION.SDK_INT>=31 && Store(c).use { it.get(id)?.instantKey?.isNotEmpty()==true })
             request.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
         WorkManager.getInstance(c).enqueueUniqueWork("batch-$id",if(retry) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP,request.build())
+        FocusWidgets.refresh(c)
     }
     fun resume(c: Context) { Store(c).use { it.claimableBatches().forEach { b -> enqueue(c,b.id) } } }
     fun retry(c: Context,id: Long,target: DeliveryTarget?=null) { if(Store(c).use { it.retry(id,target) }) enqueue(c,id,true) }
@@ -40,10 +41,11 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
         val id=inputData.getLong("id",0)
         val s=Settings(applicationContext)
         var frozen: RunConfig?=null
-        Store(applicationContext).use { db ->
+        try { Store(applicationContext).use { db ->
             var b=db.get(id)?:return Result.success()
             val claimed=if(b.state=="QUEUED") db.claimAnalysis(id) else null
             if(claimed!=null) {
+                FocusWidgets.refresh(applicationContext)
                 try {
                     val candidates=NotificationCandidates.prepare(claimed)
                     val selected=if(candidates.isEmpty()) Selection(emptySet(),"") else {
@@ -85,6 +87,7 @@ class BatchWorker(c: Context,p: WorkerParameters) : Worker(c,p) {
                 }
             }
         }
+        } finally { FocusWidgets.refresh(applicationContext) }
         return Result.success()
     }
 }
@@ -100,30 +103,31 @@ object TimerEngine {
         val s=Settings(c)
         val t=Store(c).use { it.startFocus(s.minutes,s.focusMode) }
         if(old.token!=t.token) cancel(c,old.token)
-        schedule(c,t); BatchEngine.resume(c)
+        schedule(c,t); BatchEngine.resume(c); FocusWidgets.refresh(c)
     }
     @Synchronized fun setMode(c: Context,mode: FocusMode) {
         Settings(c).focusMode=mode
         val old=Store(c).use { it.timer() }
         val current=Store(c).use { it.changeFocusMode(mode) }
         if(old.token!=current.token) cancel(c,old.token)
-        schedule(c,current); BatchEngine.resume(c)
+        schedule(c,current); BatchEngine.resume(c); FocusWidgets.refresh(c)
     }
     @Synchronized fun pause(c: Context) {
         val old=Store(c).use { it.timer() }
         Store(c).use { it.pauseFocus() }
-        cancel(c,old.token); BatchEngine.resume(c)
+        cancel(c,old.token); BatchEngine.resume(c); FocusWidgets.refresh(c)
     }
-    @Synchronized fun rest(c: Context) {
+    @Synchronized fun rest(c: Context,expectedToken: Long?=null) {
         val old=Store(c).use { it.timer() }
-        Store(c).use { it.stopFocus() }
-        cancel(c,old.token); BatchEngine.resume(c)
+        Store(c).use { it.stopFocus(expectedToken=expectedToken) }
+        cancel(c,old.token)
+        schedule(c,Store(c).use { it.timer() }); BatchEngine.resume(c); FocusWidgets.refresh(c)
     }
     @Synchronized fun adjustRemaining(c: Context,minutes: Int): Boolean {
         val old=Store(c).use { it.timer() }
         val changed=Store(c).use { it.adjustRemaining(minutes) }
         cancel(c,old.token)
-        schedule(c,Store(c).use { it.timer() }); BatchEngine.resume(c)
+        schedule(c,Store(c).use { it.timer() }); BatchEngine.resume(c); FocusWidgets.refresh(c)
         return changed!=null
     }
     @Synchronized fun restore(c: Context) {
@@ -133,7 +137,7 @@ object TimerEngine {
         if(old.token!=current.token) cancel(c,old.token)
         // Pre-2.0 used this one shared timer work name. It is never used for new rounds.
         WorkManager.getInstance(c).cancelUniqueWork("focus-timer")
-        schedule(c,current); BatchEngine.resume(c)
+        schedule(c,current); BatchEngine.resume(c); FocusWidgets.refresh(c)
     }
     private fun schedule(c: Context,t: Store.Timer) {
         if(t.state!="RUNNING") return
@@ -151,7 +155,7 @@ object TimerEngine {
         if(!changed) return
         // The next round has a different unique work name; enqueueing it never cancels this worker.
         schedule(c,Store(c).use { it.timer() })
-        BatchEngine.resume(c)
+        BatchEngine.resume(c); FocusWidgets.refresh(c)
     }
 }
 class TimerWorker(c: Context,p: WorkerParameters): Worker(c,p) {

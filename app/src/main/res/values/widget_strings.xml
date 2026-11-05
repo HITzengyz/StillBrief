@@ -1,0 +1,13 @@
+<resources>
+    <string name="widget_wide_name">息间 · 横条专注</string>
+    <string name="widget_square_name">息间 · 方形专注</string>
+    <string name="widget_wide_description">在桌面查看专注倒计时，并开始、继续或结束专注。</string>
+    <string name="widget_square_description">方形专注面板，显示剩余时间和快捷操作。</string>
+    <string name="widget_preview_brand">息间</string>
+    <string name="widget_preview_time">35:00</string>
+    <string name="widget_preview_mode">单次</string>
+    <string name="widget_preview_status">准备专注</string>
+    <string name="widget_preview_primary">开始专注</string>
+    <string name="widget_preview_secondary">结束并分析</string>
+    <string name="widget_time_description">剩余专注时间</string>
+</resources>

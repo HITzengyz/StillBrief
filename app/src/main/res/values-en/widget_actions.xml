@@ -1,0 +1,19 @@
+<resources>
+    <string name="widget_open_focus">Open StillBrief Focus</string>
+    <string name="widget_loop">Auto-repeat</string>
+    <string name="widget_single">Single</string>
+    <string name="widget_focusing">Focusing</string>
+    <string name="widget_paused">Paused</string>
+    <string name="widget_idle">Ready to focus</string>
+    <string name="widget_analyzing">Analyzing</string>
+    <string name="widget_failed">Needs attention · View</string>
+    <string name="widget_delivered">Summary sent</string>
+    <string name="widget_quiet">Nothing to flag</string>
+    <string name="widget_setup_hint">Complete setup</string>
+    <string name="widget_start">Start focus</string>
+    <string name="widget_resume">Resume</string>
+    <string name="widget_analyze">Analyze</string>
+    <string name="widget_end">End &amp; analyze</string>
+    <string name="widget_setup">Set up</string>
+    <string name="widget_end_compact">End &amp;\nanalyze</string>
+</resources>
