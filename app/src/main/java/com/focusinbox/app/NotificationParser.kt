@@ -12,7 +12,7 @@ object NotificationParser {
     private val larkPackages = setOf("com.ss.android.lark", "com.lark.overseas")
     private val communicationPackages = larkPackages + setOf("com.tencent.mm", "com.tencent.mobileqq", "com.tencent.tim")
     fun isFeishu(pkg: String)=pkg in larkPackages
-    data class Parsed(val title: String, val body: String, val kind: String, val hidden: Boolean, val summary: Boolean)
+    data class Parsed(val title: String, val body: String, val kind: String, val hidden: Boolean, val summary: Boolean,val sourceTime: Long=0)
 
     fun parse(notification: Notification, pkg: String, defaultSmsPackage: String? = null,sentSummaries: Collection<String> = emptyList(),latestOnly: Boolean=false): Parsed? {
         val extras = notification.extras ?: Bundle.EMPTY
@@ -50,19 +50,28 @@ object NotificationParser {
             val sender = person ?: message.getCharSequence("sender")?.toString().orEmpty()
             if (sender.isBlank()) visible else "$sender：$visible"
         }
-        val rawFallback = buildList {
-            extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.let { add(it) }
-            extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString("\n")?.let { add(it) }
-            extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.let { add(it) }
-            extras.getCharSequence(Notification.EXTRA_TITLE_BIG)?.toString()?.takeIf { it != title }?.let { add(it) }
-            extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()?.let { add(it) }
-            // CallStyle provides caller information in the notification itself; never resolve contact URIs.
-            if (Build.VERSION.SDK_INT >= 31 && notification.category in setOf(Notification.CATEGORY_CALL,Notification.CATEGORY_MISSED_CALL)) {
-                @Suppress("DEPRECATION")
-                val caller=extras.getParcelable<Person>(Notification.EXTRA_CALL_PERSON)
-                caller?.name?.toString()?.takeIf { it.isNotBlank() }?.let { add(it) }
-                caller?.uri?.let { android.net.Uri.parse(it) }?.takeIf { it.scheme=="tel" }
-                    ?.schemeSpecificPart?.takeIf { it.isNotBlank() }?.let { add(it) }
+        // Collapsed text describes the current event. Expanded InboxStyle lines may be history.
+        val currentText=extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
+        val bigText=extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty()
+        val bigStyle=extras.getString(Notification.EXTRA_TEMPLATE)=="android.app.Notification\$BigTextStyle" ||
+            (bigText.isNotBlank() && !extras.containsKey(Notification.EXTRA_TEXT_LINES) && !messaging)
+        val rawFallback = when {
+            latestOnly && bigStyle && bigText.isNotBlank() -> listOf(bigText)
+            latestOnly && currentText.isNotBlank() -> listOf(currentText)
+            else -> buildList {
+                extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.let { add(it) }
+                extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString("\n")?.let { add(it) }
+                extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.let { add(it) }
+                extras.getCharSequence(Notification.EXTRA_TITLE_BIG)?.toString()?.takeIf { it != title }?.let { add(it) }
+                extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()?.let { add(it) }
+                // CallStyle provides caller information in the notification itself; never resolve contact URIs.
+                if (Build.VERSION.SDK_INT >= 31 && notification.category in setOf(Notification.CATEGORY_CALL,Notification.CATEGORY_MISSED_CALL)) {
+                    @Suppress("DEPRECATION")
+                    val caller=extras.getParcelable<Person>(Notification.EXTRA_CALL_PERSON)
+                    caller?.name?.toString()?.takeIf { it.isNotBlank() }?.let { add(it) }
+                    caller?.uri?.let { android.net.Uri.parse(it) }?.takeIf { it.scheme=="tel" }
+                        ?.schemeSpecificPart?.takeIf { it.isNotBlank() }?.let { add(it) }
+                }
             }
         }
         val cleanedFallback=rawFallback.map { raw -> raw to clean(raw) }
@@ -91,6 +100,7 @@ object NotificationParser {
         val hidden = hiddenMedia || NotificationCandidates.placeholder(body) || body.isBlank() || body.trim() in setOf(
             "你收到了一条消息", "你收到一条新消息", "收到一条新消息", "新消息", "内容已隐藏", "通知内容已隐藏", "Message", "New message"
         ) || body.contains("隐藏了通知内容")
-        return Parsed(title, body, kind, hidden, (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0)
+        return Parsed(title, body, kind, hidden, (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0,
+            if(latestOnly) bundles.lastOrNull()?.getLong("time",0) ?: 0 else 0)
     }
 }

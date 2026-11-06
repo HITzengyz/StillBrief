@@ -15,8 +15,8 @@ object VerificationCodes {
             .filter { value -> value.any(Char::isDigit) }.distinct().toList()
         return matches.singleOrNull()
     }
-    fun key(pkg: String,code: String): String = MessageDigest.getInstance("SHA-256")
-        .digest("$pkg\n$code".toByteArray()).joinToString("") { "%02x".format(it) }
+    fun key(pkg: String,code: String,sender: String="",body: String=""): String = MessageDigest.getInstance("SHA-256")
+        .digest("$pkg\u0000$sender\u0000$body\u0000$code".toByteArray()).joinToString("") { "%02x".format(it) }
     fun active(enabled: Boolean,target: DeliveryTarget)=enabled && target==DeliveryTarget.FEISHU
     fun fresh(created: Long,now: Long)=now-created in 0 until MAX_AGE_MS
     fun message(n: Notice,code: String,language: UiLanguage): String =

@@ -108,7 +108,8 @@ object FocusWidgets {
             else -> R.string.widget_idle
         }
         views.setTextViewText(R.id.widget_status,c.getString(status))
-        views.setOnClickPendingIntent(R.id.widget_status,open(context,if(failed) 1 else 0))
+        val statusPage=when(status) { R.string.widget_setup_hint -> 2; R.string.widget_failed -> 1; else -> 0 }
+        views.setOnClickPendingIntent(R.id.widget_status,open(context,statusPage))
         val primary=when(state.primary) {
             WidgetAction.START -> R.string.widget_start
             WidgetAction.RESUME -> R.string.widget_resume

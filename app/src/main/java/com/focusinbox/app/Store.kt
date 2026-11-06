@@ -127,16 +127,18 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
     /** Codes get their own ready-to-send record; the active focus window is never changed. */
     fun queueCode(n: Notice,code: String,language: UiLanguage): Long? = transaction {
         if(isFiltered(n) || n.summary || n.hidden) return@transaction null
-        val key=VerificationCodes.key(n.pkg,code)
-        val active=readableDatabase.rawQuery("SELECT b.id FROM code_notifications c JOIN batches b ON b.id=c.batchId WHERE c.nkey=? AND b.instantKey=?",arrayOf(n.key,key)).use { if(it.moveToFirst()) it.getLong(0) else null }
-        if(active!=null) return@transaction active
-        val old=writableDatabase.rawQuery("SELECT id FROM batches WHERE instantKey=? AND created>? ORDER BY id DESC LIMIT 1",arrayOf(key,(n.at-VerificationCodes.MAX_AGE_MS).toString())).use { if(it.moveToFirst()) it.getLong(0) else null }
+        val key=VerificationCodes.key(n.pkg,code,n.title,n.body)
+        val sourceTime=n.sourceTime.takeIf { it>0 } ?: n.at
+        // A live notification can update its display text without becoming a new code.
+        val active=readableDatabase.rawQuery("SELECT b.id FROM code_notifications c JOIN batches b ON b.id=c.batchId WHERE c.nkey=? AND b.created<=? AND b.created>?",arrayOf(n.key,sourceTime.toString(),(sourceTime-VerificationCodes.MAX_AGE_MS).toString())).use { if(it.moveToFirst()) it.getLong(0) else null }
+        if(active!=null && notices(active).any { it.title==n.title && VerificationCodes.extract(it.title,it.body)==code }) return@transaction active
+        val old=writableDatabase.rawQuery("SELECT id FROM batches WHERE instantKey=? AND created<=? AND created>? ORDER BY id DESC LIMIT 1",arrayOf(key,sourceTime.toString(),(sourceTime-VerificationCodes.MAX_AGE_MS).toString())).use { if(it.moveToFirst()) it.getLong(0) else null }
         if(old!=null) {
             writableDatabase.execSQL("INSERT OR REPLACE INTO code_notifications VALUES(?,?)",arrayOf(n.key,old))
             return@transaction old
         }
         val id=writableDatabase.insertOrThrow("batches",null,ContentValues().apply {
-            put("state","READY"); put("created",n.sourceTime.takeIf { it>0 } ?: n.at); put("target","FEISHU")
+            put("state","READY"); put("created",sourceTime); put("target","FEISHU")
             put("instantKey",key); put("message",VerificationCodes.message(n,code,language))
         })
         writableDatabase.insertOrThrow("notices",null,ContentValues().apply {

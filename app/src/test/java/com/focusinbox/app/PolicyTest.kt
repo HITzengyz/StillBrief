@@ -21,6 +21,64 @@ class PolicyTest {
         assertFalse(result.message.contains("隐藏号码")); assertFalse(result.message.contains("隐私保护"))
         assertEquals(visible.body,visible.json().getString("body"))
     }
+    @Test fun omissionAppendsOnlyMissingRequiredItemsAndRetainsCompleteNumberAndCode() {
+        val kept=n(1,"已由模型处理，不应重复")
+        val missing=n(2,"说明".repeat(46)+"请回拨13812345678，验证码A1B2C3",kind="private").copy(title="张三")
+        val result=Policy.parse("""{"selected_ids":[1],"message":"请确认已选事项。"}""",listOf(kept,missing))
+        assertEquals(setOf(1L,2L),result.ids)
+        assertTrue(result.message.startsWith("请确认已选事项。"))
+        assertFalse(result.message.contains(kept.body))
+        assertTrue(result.message.contains("13812345678")); assertTrue(result.message.contains("A1B2C3"))
+        assertTrue(result.message.length<=1200)
+    }
+    @Test fun longFieldsAndManyRequiredItemsHaveBoundedExplicitPreviews() {
+        val original=(1L..20L).map {
+            n(it,"事项".repeat(900)+"验证码A1B2C3",kind="private").copy(app="应用".repeat(900),title="标题".repeat(900)+"13812345678")
+        }
+        val result=Policy.parse("""{"selected_ids":[],"message":""}""",original)
+        assertEquals(original.map { it.id }.toSet(),result.ids)
+        assertTrue(result.message.length<=1200)
+        assertTrue(result.message.contains("截断")); assertTrue(result.message.contains("另有14条"))
+        assertEquals("应用".repeat(900),original.first().app)
+        assertEquals("事项".repeat(900)+"验证码A1B2C3",original.first().body)
+    }
+    @Test fun fullModelSummaryReservesSpaceForMissingItemWithoutPartialDigits() {
+        val summary="说明".repeat(594)+"13812345678"
+        val input=org.json.JSONObject().put("selected_ids",org.json.JSONArray().put(1)).put("message",summary).toString()
+        val result=Policy.parse(input,listOf(n(1),n(2,"请确认明天下午会议",kind="private").copy(title="李四")))
+        assertEquals(setOf(1L,2L),result.ids)
+        assertTrue(result.message.startsWith("说明说明")); assertTrue(result.message.contains("李四"))
+        assertTrue(result.message.contains("请确认明天下午会议")); assertTrue(result.message.length<=1200)
+        assertTrue(result.message.contains("截断"))
+        val numbers=Regex("[0-9]+").findAll(result.message).map { it.value }.toList()
+        assertTrue(numbers.all { it=="13812345678" })
+    }
+    @Test fun fullSummaryAndManyLongItemsStayWithinBudgetInBothLanguages() {
+        UiLanguage.entries.forEach { language ->
+            val summary="已有摘要。".repeat(236)+"+86 138 1234 5678"
+            val missing=(2L..21L).map { n(it,"正文".repeat(800)+"483921",kind="private").copy(title="联系人".repeat(800)) }
+            val input=org.json.JSONObject().put("selected_ids",org.json.JSONArray().put(1)).put("message",summary).toString()
+            val result=Policy.parse(input,listOf(n(1))+missing,language)
+            assertEquals(21,result.ids.size); assertTrue(result.message.length<=1200)
+            assertTrue(result.message.startsWith("已有摘要。"))
+            assertTrue(result.message.contains(if(language==UiLanguage.ENGLISH) "truncated" else "截断"))
+            assertTrue(result.message.contains(if(language==UiLanguage.ENGLISH) "more to check" else "条待查看"))
+            if(!result.message.contains("+86 138 1234 5678")) {
+                assertFalse(result.message.contains("86")); assertFalse(result.message.contains("138"))
+                assertFalse(result.message.contains("1234")); assertFalse(result.message.contains("5678"))
+            }
+        }
+    }
+    @Test fun fallbackNeverCutsNumericOrAlphanumericTokensAtPreviewBoundary() {
+        listOf("13812345678","A1B2C3D4","+86 138 1234 5678").forEach { value ->
+            (80..190).forEach { padding ->
+                val result=Policy.parse("""{"selected_ids":[],"message":""}""",listOf(n(1,"说明".repeat(padding/2)+value+"，请回复",kind="private")))
+                val visibleNumbers=Regex("[0-9]+").findAll(result.message).map { it.value }.toList()
+                if(!result.message.contains(value)) assertTrue("Partial token for $value at $padding: ${result.message}",visibleNumbers.isEmpty())
+                assertTrue(result.message.length<=1200)
+            }
+        }
+    }
     @Test fun missedCallWithoutSourceDetailsUsesKnownFactOnly() {
         val source=n(1,"内容已隐藏",kind="missed_call",hidden=true).copy(title="")
         val result=Policy.parse("""{"selected_ids":[],"message":""}""",listOf(source))

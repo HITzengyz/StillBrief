@@ -42,27 +42,54 @@ object Policy {
         val message = json.getString("message").trim()
         demand(message.length <= 1200,ErrorCode.MODEL_LENGTH)
         demand(if(selected.isEmpty()) message.isEmpty() else message.isNotEmpty(),ErrorCode.MODEL_MESSAGE)
-        val required = notices.filter { it.hardKeep }.map { it.id }.toSet()
-        // A model omission cannot drop a definite private chat or missed call.
-        if (!selected.containsAll(required)) {
-            selected.addAll(required)
-            val chosen=notices.filter { it.id in selected }
-            val preview=chosen.take(6).joinToString("\n") {
-                val content=if(!NotificationCandidates.placeholder(it.body,it.app)) it.body else when {
-                    it.kind=="missed_call" -> if(language==UiLanguage.ENGLISH) "Missed call; please call back." else "有未接来电，请回拨"
-                    it.kind=="call" -> if(language==UiLanguage.ENGLISH) "Call notification; please check." else "有来电通知，请查看"
-                    it.kind=="mail" -> if(language==UiLanguage.ENGLISH) "Email notification; please check." else "有邮件，请查看"
-                    it.kind=="sms" -> if(language==UiLanguage.ENGLISH) "Text message; please check." else "有短信，请查看"
-                    it.kind in setOf("private","group","message") -> if(language==UiLanguage.ENGLISH) "New message; please check." else "有新消息，请查看"
-                    else -> if(language==UiLanguage.ENGLISH) "Notification to check." else "有通知，请查看"
-                }
-                if(language==UiLanguage.ENGLISH) "${it.app} · ${it.title.ifBlank { "Notification to check" }.take(60)}: ${content.take(100)}"
-                else "${it.app} · ${it.title.ifBlank { "待查看通知" }.take(60)}：${content.take(100)}"
-            }
-            val more=if(chosen.size<=6) "" else if(language==UiLanguage.ENGLISH) "\n${chosen.size-6} more to check." else "\n另有${chosen.size-6}条待查看。"
-            return Selection(selected,"$preview$more")
+        val missing=notices.filter { it.hardKeep && it.id !in selected }
+        // Preserve the model's selected summary; only supplement omitted mandatory items.
+        if(missing.isNotEmpty()) {
+            selected.addAll(missing.map { it.id })
+            return Selection(selected,withMissing(message,missing,language))
         }
         return Selection(selected, message)
+    }
+    private val previewToken=Regex("""(?<![A-Za-z\p{Nd}])[+]?\p{Nd}(?:[\p{Nd}\p{Zs}()\-]*\p{Nd})?(?![A-Za-z\p{Nd}])|[A-Za-z\p{Nd}]+""")
+    /** Shorten display text without presenting a partial phone number or verification token. */
+    private fun preview(text: String,limit: Int,marker: String): String {
+        if(text.length<=limit) return text
+        var end=(limit-marker.length).coerceAtLeast(0)
+        previewToken.findAll(text).firstOrNull { it.range.first<end && it.range.last>=end }?.let { end=it.range.first }
+        if(end>0 && text[end-1].isHighSurrogate()) end--
+        return text.take(end).trimEnd()+marker
+    }
+    private fun withMissing(message: String,missing: List<Notice>,language: UiLanguage): String {
+        val english=language==UiLanguage.ENGLISH
+        val marker=if(english) "… (truncated; check original)" else "…（已截断，请查看原通知）"
+        val rows=missing.take(6).map {
+            val content=if(!NotificationCandidates.placeholder(it.body,it.app)) it.body else when(it.kind) {
+                "missed_call" -> if(english) "Missed call; please call back." else "有未接来电，请回拨"
+                "call" -> if(english) "Call notification; please check." else "有来电通知，请查看"
+                "mail" -> if(english) "Email notification; please check." else "有邮件，请查看"
+                "sms" -> if(english) "Text message; please check." else "有短信，请查看"
+                "private","group","message" -> if(english) "New message; please check." else "有新消息，请查看"
+                else -> if(english) "Notification to check." else "有通知，请查看"
+            }
+            "${it.app} · ${it.title.ifBlank { if(english) "Notification to check" else "待查看通知" }}${if(english) ": " else "："}$content"
+        }
+        fun more(shown: Int)=if(shown==missing.size) "" else if(english) "${missing.size-shown} more to check." else "另有${missing.size-shown}条待查看。"
+        fun footerSize(shown: Int)=more(shown).let { if(it.isEmpty()) 0 else it.length+1 }
+        fun minimum(row: String)=minOf(row.length,marker.length+20)
+        val separator=if(message.isEmpty()) 0 else 1
+        val wanted=rows.sumOf { minOf(it.length,180) }+rows.size-1+footerSize(rows.size)
+        // Keep the original summary intact whenever possible; a full-length one must leave room for the omission.
+        val budget=minOf(wanted,maxOf(1200-message.length-separator,minOf(wanted,240)))
+        var shown=rows.size
+        while(shown>1 && rows.take(shown).sumOf { minimum(it) }+shown-1+footerSize(shown)>budget) shown--
+        var remaining=budget-(shown-1)-footerSize(shown)
+        val additions=rows.take(shown).mapIndexed { index,row ->
+            val reserved=rows.subList(index+1,shown).sumOf { minimum(it) }
+            preview(row,minOf(180,remaining-reserved),marker).also { remaining-=it.length }
+        }.toMutableList()
+        more(shown).takeIf { it.isNotEmpty() }?.let { additions.add(it) }
+        val original=preview(message,1200-budget-separator,marker)
+        return (listOf(original).filter { it.isNotEmpty() }+additions).joinToString("\n")
     }
     fun combine(language: UiLanguage,notices: List<Notice>,selections: List<Selection>): Selection {
         val ids=selections.flatMap { it.ids }.toSet()

@@ -28,6 +28,23 @@ class FocusWidgetTest {
         while(SystemClock.uptimeMillis()<end) { if(condition()) return; SystemClock.sleep(40) }
         assertTrue(message,condition())
     }
+    @Test fun setupStatusOpensSettingsEvenWithAnOldFailure() {
+        val activity=ins.startActivitySync(Intent(c,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
+        try {
+            for(last in listOf("","FAILED")) {
+                ins.runOnMainSync {
+                    val state=WidgetState("IDLE",0,0,0,35,false,0,false,false,last)
+                    val view=FocusWidgets.render(c,123,true,state).apply(activity,FrameLayout(activity))
+                    view.findViewById<View>(R.id.widget_status).performClick()
+                }
+                ins.waitForIdleSync()
+                waitFor("Setup status should open Settings") {
+                    activity.findViewById<android.view.ViewGroup>(R.id.page_navigation).getChildAt(2).isSelected
+                }
+                ins.runOnMainSync { activity.findViewById<android.view.ViewGroup>(R.id.page_navigation).getChildAt(0).performClick() }
+            }
+        } finally { ins.runOnMainSync { activity.finish() } }
+    }
     @Test fun directCommandsStayOnHostAndBothWidgetsShareTheSameSession() {
         // This suite runs in a separate application ID. Only synthetic credentials and
         // locally excluded status notifications are used; no AI or Feishu request is made.

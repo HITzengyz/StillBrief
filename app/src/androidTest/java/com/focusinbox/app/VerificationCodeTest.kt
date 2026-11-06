@@ -21,6 +21,66 @@ class VerificationCodeTest {
     @After fun cleanup() { db.close(); context.deleteDatabase(dbName); context.deleteSharedPreferences(prefsName) }
     private fun notice(at: Long=2000)=Notice(key="sms1",pkg="sms",app="短信",title="106900",body="【示例服务】验证码：123456，5分钟内有效",at=at,kind="sms",sourceTime=at)
     private fun enable() { settings.saveBasic(Provider.DEEPSEEK,"","https://open.feishu.cn/open-apis/bot/v2/hook/example",false,DeliveryTarget.FEISHU,true) }
+    @Test fun identicalCodeFromDifferentSendersDoesNotReuseDeliveredBatch() {
+        val first=db.queueCode(notice(),"123456",UiLanguage.CHINESE)!!
+        db.transition(first,"READY","SENDING"); db.transition(first,"SENDING","DONE")
+        val second=db.queueCode(notice(3000).copy(title="106901",key="other-sender"),"123456",UiLanguage.CHINESE)!!
+        assertNotEquals(first,second)
+        assertEquals("READY",db.get(second)!!.state)
+    }
+    @Test fun newCodeAfterExpiryCanReuseTheSameValueAndNotificationKey() {
+        val first=db.queueCode(notice(),"123456",UiLanguage.CHINESE)!!
+        db.transition(first,"READY","SENDING"); db.transition(first,"SENDING","DONE")
+        val second=db.queueCode(notice(603000),"123456",UiLanguage.CHINESE)!!
+        assertNotEquals(first,second); assertEquals(603000L,db.get(second)!!.created)
+    }
+    @Test fun currentInboxTextWinsOverHistoricalCodes() {
+        val n=android.app.Notification().apply {
+            extras=android.os.Bundle().apply {
+                putString(android.app.Notification.EXTRA_TITLE,"106900")
+                putString(android.app.Notification.EXTRA_TEXT,"验证码654321")
+                putCharSequenceArray(android.app.Notification.EXTRA_TEXT_LINES,arrayOf("验证码123456","验证码654321"))
+                putString(android.app.Notification.EXTRA_BIG_TEXT,"验证码123456\n验证码654321")
+            }
+        }
+        val latest=NotificationParser.parse(n,"sms","sms",latestOnly=true)!!
+        assertEquals("654321",VerificationCodes.extract(latest.title,latest.body))
+        n.extras.putString(android.app.Notification.EXTRA_TEXT,"登录成功")
+        assertNull(VerificationCodes.extract("106900",NotificationParser.parse(n,"sms","sms",latestOnly=true)!!.body))
+    }
+    @Test fun liveCodeDisplayUpdatesDoNotSendAgain() {
+        val first=db.queueCode(notice(),"123456",UiLanguage.CHINESE)!!
+        db.transition(first,"READY","SENDING"); db.transition(first,"SENDING","DONE")
+        val refreshed=notice().copy(body="【示例服务】验证码：123456，4分钟内有效")
+        assertEquals(first,db.queueCode(refreshed,"123456",UiLanguage.CHINESE))
+        assertEquals(first,db.queueCode(refreshed.copy(sourceTime=3000),"123456",UiLanguage.CHINESE))
+        assertEquals(1,db.batches().size)
+    }
+    @Test fun bigTextKeepsTheCompleteCodeInsteadOfCollapsedPreview() {
+        for(collapsed in listOf("收到一条短信","验证码1234…")) {
+            val n=android.app.Notification().apply {
+                extras=android.os.Bundle().apply {
+                    putString(android.app.Notification.EXTRA_TEMPLATE,"android.app.Notification\$BigTextStyle")
+                    putString(android.app.Notification.EXTRA_TEXT,collapsed)
+                    putString(android.app.Notification.EXTRA_BIG_TEXT,"验证码123456")
+                }
+            }
+            assertEquals("123456",VerificationCodes.extract("",NotificationParser.parse(n,"sms","sms",latestOnly=true)!!.body))
+        }
+    }
+    @Test fun messagingTimestampPreventsRefreshingAnExpiredCode() {
+        val n=android.app.Notification().apply {
+            extras=android.os.Bundle().apply {
+                putString(android.app.Notification.EXTRA_TITLE,"106900")
+                putParcelableArray(android.app.Notification.EXTRA_MESSAGES,arrayOf(
+                    android.os.Bundle().apply { putCharSequence("text","验证码123456"); putLong("time",1000) }
+                ))
+            }
+        }
+        val latest=NotificationParser.parse(n,"sms","sms",latestOnly=true)!!
+        assertEquals(1000L,latest.sourceTime)
+        assertFalse(VerificationCodes.fresh(latest.sourceTime,601000))
+    }
     @Test fun immediateBatchWorksOutsideFocusAndDoesNotEnterLaterSummary() {
         val before=db.timer()
         val id=db.queueCode(notice(),"123456",UiLanguage.CHINESE)!!
@@ -83,7 +143,7 @@ class VerificationCodeTest {
         try { CodeDelivery.send(db.get(id)!!,settings,601000) { _,_ -> fail("Must not send expired code") }; fail("Expected expiry") }
         catch(e: AppFailure) { assertEquals(ErrorCode.CODE_EXPIRED,e.code) }
         db.startFocus(35,FocusMode.LOOP,602000)
-        assertEquals(id,db.queueCode(notice(603000),"123456",UiLanguage.CHINESE))
+        assertEquals(id,db.queueCode(notice(603000).copy(sourceTime=1000),"123456",UiLanguage.CHINESE))
         db.removeLatest("sms1")
         assertNotEquals(id,db.queueCode(notice(604000),"123456",UiLanguage.CHINESE))
     }

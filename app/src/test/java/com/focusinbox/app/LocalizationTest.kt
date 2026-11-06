@@ -74,6 +74,16 @@ class LocalizationTest {
         assertFalse(unknown.message.contains("Alex")); assertFalse(unknown.message.any { it.isDigit() })
         assertFalse(unknown.message.contains("hidden")); assertFalse(unknown.message.contains("protected"))
     }
+    @Test fun englishMissingItemsPreserveModelTextAndShowTruncationAndOverflow() {
+        val selected=notice.copy(id=100,kind="unknown",body="Do not duplicate this record")
+        val missing=(1L..20L).map { notice.copy(id=it,title="Alex "+"details ".repeat(150),body="Call "+"details ".repeat(150)+"+1 202 555 0123") }
+        val input=JSONObject().put("selected_ids",org.json.JSONArray().put(100)).put("message","Reply to the selected email.").toString()
+        val result=Policy.parse(input,listOf(selected)+missing,UiLanguage.ENGLISH)
+        assertEquals(21,result.ids.size); assertTrue(result.message.startsWith("Reply to the selected email."))
+        assertFalse(result.message.contains(selected.body)); assertTrue(result.message.length<=1200)
+        assertTrue(result.message.contains("truncated")); assertTrue(result.message.contains("14 more to check"))
+        assertFalse(result.message.contains("截断"))
+    }
     @Test fun englishEmptySelectionDoesNotInventSummary() {
         val result=Policy.parse(empty,listOf(notice.copy(kind="unknown")),UiLanguage.ENGLISH)
         assertTrue(result.ids.isEmpty()); assertEquals("",result.message)
