@@ -1,0 +1,15 @@
+<resources>
+    <color name="sb_background">@color/sb_dark_background</color>
+    <color name="sb_surface">@color/sb_dark_surface</color>
+    <color name="sb_text">@color/sb_dark_text</color>
+    <color name="sb_secondary">@color/sb_dark_secondary</color>
+    <color name="sb_accent">@color/sb_dark_accent</color>
+    <color name="sb_on_accent">@color/sb_dark_on_accent</color>
+    <color name="sb_control">@color/sb_dark_control</color>
+    <color name="sb_selected">@color/sb_dark_selected</color>
+    <color name="sb_outline">@color/sb_dark_outline</color>
+    <color name="sb_ripple">@color/sb_dark_ripple</color>
+    <color name="sb_track">@color/sb_dark_track</color>
+    <color name="sb_tick">@color/sb_dark_tick</color>
+    <color name="sb_tick_active">@color/sb_dark_tick_active</color>
+</resources>

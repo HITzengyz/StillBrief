@@ -5,19 +5,19 @@
         android:layout_gravity="center_vertical" android:orientation="horizontal">
         <Button android:id="@+id/widget_preset_25" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
             android:text="@string/quick_start_25" android:contentDescription="@string/quick_start_25_accessibility"
-            android:textSize="18sp" android:textColor="#23796F" android:fontFamily="sans-serif-medium"
+            android:textSize="18sp" android:textColor="@color/sb_accent" android:fontFamily="sans-serif-medium"
             android:background="@drawable/widget_secondary_background" android:textAllCaps="false" android:padding="2dp"
             android:minWidth="48dp" android:minHeight="48dp" android:maxLines="1" android:gravity="center"
             android:includeFontPadding="false" android:stateListAnimator="@null" />
         <Button android:id="@+id/widget_preset_35" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="2dp"
             android:text="@string/quick_start_35" android:contentDescription="@string/quick_start_35_accessibility"
-            android:textSize="18sp" android:textColor="#23796F" android:fontFamily="sans-serif-medium"
+            android:textSize="18sp" android:textColor="@color/sb_accent" android:fontFamily="sans-serif-medium"
             android:background="@drawable/widget_secondary_background" android:textAllCaps="false" android:padding="2dp"
             android:minWidth="48dp" android:minHeight="48dp" android:maxLines="1" android:gravity="center"
             android:includeFontPadding="false" android:stateListAnimator="@null" />
         <Button android:id="@+id/widget_preset_45" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="2dp"
             android:text="@string/quick_start_45" android:contentDescription="@string/quick_start_45_accessibility"
-            android:textSize="18sp" android:textColor="#23796F" android:fontFamily="sans-serif-medium"
+            android:textSize="18sp" android:textColor="@color/sb_accent" android:fontFamily="sans-serif-medium"
             android:background="@drawable/widget_secondary_background" android:textAllCaps="false" android:padding="2dp"
             android:minWidth="48dp" android:minHeight="48dp" android:maxLines="1" android:gravity="center"
             android:includeFontPadding="false" android:stateListAnimator="@null" />
@@ -27,23 +27,23 @@
         <FrameLayout android:id="@+id/widget_time_area" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
             android:layout_marginEnd="4dp" android:contentDescription="@string/widget_time_description">
             <Chronometer android:id="@+id/widget_timer" android:layout_width="match_parent" android:layout_height="match_parent"
-                android:gravity="center" android:textSize="27sp" android:textColor="#244336" android:fontFamily="sans-serif-medium"
+                android:gravity="center" android:textSize="27sp" android:textColor="@color/sb_text" android:fontFamily="sans-serif-medium"
                 android:autoSizeTextType="uniform" android:autoSizeMinTextSize="18sp" android:autoSizeMaxTextSize="27sp" android:autoSizeStepGranularity="1sp"
                 android:includeFontPadding="false" android:singleLine="true" android:visibility="gone" />
             <TextView android:id="@+id/widget_time_static" android:layout_width="match_parent" android:layout_height="match_parent"
                 android:text="@string/quick_preview_time" android:gravity="center" android:textSize="27sp"
-                android:textColor="#244336" android:fontFamily="sans-serif-medium" android:includeFontPadding="false" android:singleLine="true"
+                android:textColor="@color/sb_text" android:fontFamily="sans-serif-medium" android:includeFontPadding="false" android:singleLine="true"
                 android:autoSizeTextType="uniform" android:autoSizeMinTextSize="18sp" android:autoSizeMaxTextSize="27sp" android:autoSizeStepGranularity="1sp" />
         </FrameLayout>
         <Button android:id="@+id/widget_primary" android:layout_width="60dp" android:layout_height="match_parent"
-            android:text="@string/quick_pause" android:textSize="13sp" android:textColor="#FFFFFF" android:fontFamily="sans-serif-medium"
+            android:text="@string/quick_pause" android:textSize="13sp" android:textColor="@color/sb_on_accent" android:fontFamily="sans-serif-medium"
             android:background="@drawable/widget_primary_background" android:textAllCaps="false" android:padding="4dp"
             android:minWidth="48dp" android:minHeight="48dp" android:maxLines="2" android:gravity="center"
             android:includeFontPadding="false" android:stateListAnimator="@null" />
     </LinearLayout>
     <Button android:id="@+id/widget_quick_setup" android:layout_width="match_parent" android:layout_height="48dp"
         android:layout_gravity="center_vertical" android:visibility="gone" android:text="@string/quick_setup"
-        android:textSize="14sp" android:textColor="#FFFFFF" android:fontFamily="sans-serif-medium"
+        android:textSize="14sp" android:textColor="@color/sb_on_accent" android:fontFamily="sans-serif-medium"
         android:background="@drawable/widget_primary_background" android:textAllCaps="false" android:padding="4dp"
         android:minWidth="48dp" android:minHeight="48dp" android:maxLines="2" android:gravity="center"
         android:includeFontPadding="false" android:stateListAnimator="@null" />

@@ -61,7 +61,7 @@ class SpinnerLocaleTest {
         yield(view); if(view is ViewGroup) for(index in 0 until view.childCount) yieldAll(views(view.getChildAt(index)))
     }
     private fun content(): ViewGroup { val host=activity.findViewById<FrameLayout>(R.id.page_host); return host.getChildAt(host.childCount-1) as ViewGroup }
-    private fun pickers()=views(content()).filterIsInstance<Spinner>().toList()
+    private fun pickers()=views(content()).filterIsInstance<Spinner>().filter { it.id!=R.id.appearance_picker }.toList()
     private fun edits()=views(content()).filterIsInstance<EditText>().toList()
     private fun scroll()=views(content()).filterIsInstance<ScrollView>().first()
     private fun openSettings() {
@@ -79,10 +79,10 @@ class SpinnerLocaleTest {
         while(SystemClock.uptimeMillis()<end) { activeNode(id)?.let { return it }; SystemClock.sleep(30) }
         throw AssertionError("Missing control: $id")
     }
-    @Test fun allThreeSpinnersUseMintRowsAndDoNotStyleMeasurementParents() {
+    @Test fun allSettingsSpinnersUseMintRowsAndDoNotStyleMeasurementParents() {
         openSettings()
         onMain {
-            val all=pickers(); assertEquals(3,all.size); assertTrue(all.all { it is MintSpinner })
+            val all=views(content()).filterIsInstance<Spinner>().toList(); assertEquals(4,all.size); assertTrue(all.all { it is MintSpinner })
             all.forEach { spinner ->
                 assertEquals(Spinner::class.java.name,spinner.createAccessibilityNodeInfo().className.toString())
                 val adapter=spinner.adapter as SpinnerAdapter

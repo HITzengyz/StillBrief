@@ -40,6 +40,7 @@ class MainActivity : Activity() {
     private var resumed=false
     private var uiResources: Resources?=null
     private var appliedLanguage: UiLanguage?=null
+    private var appliedNight=false
     private var uiGeneration=0
     private var pageScroll: ScrollView?=null
     private val scrollPositions=mutableMapOf<Int,Int>()
@@ -68,13 +69,16 @@ class MainActivity : Activity() {
     override fun attachBaseContext(base: Context) { super.attachBaseContext(LocaleHelper.wrap(base)) }
     override fun onRetainNonConfigurationInstance(): Any { rememberScroll(); return RetainedScreen(page,if(page==2) captureForm?.invoke() ?: savedForm else savedForm,scrollPositions.toMap()) }
     private val tick=object: Runnable { override fun run() { if(page==0) update(); handler.postDelayed(this,1000) } }
-    private val ink=Color.rgb(28,53,49)
-    private val green=Color.rgb(35,121,111)
+    private val palette get()=Palette(this)
+    private val ink get()=palette.text
+    private val green get()=palette.accent
     private fun dp(n: Int)=(n*resources.displayMetrics.density).toInt()
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState); settings=Settings(this)
+        settings=Settings(this)
         appliedLanguage=LocaleHelper.current(this)
-        uiResources=LocaleHelper.resourcesFor(baseContext,appliedLanguage!!)
+        updateResources(appliedLanguage!!,baseContext.resources.configuration)
+        super.onCreate(savedInstanceState)
+        applyWindowColors()
         window.decorView.setOnApplyWindowInsetsListener { v,insets ->
             if(android.os.Build.VERSION.SDK_INT>=30) { val bars=insets.getInsets(WindowInsets.Type.systemBars()); v.setPadding(bars.left,bars.top,bars.right,bars.bottom) }
             else { @Suppress("DEPRECATION") v.setPadding(insets.systemWindowInsetLeft,insets.systemWindowInsetTop,insets.systemWindowInsetRight,insets.systemWindowInsetBottom) }
@@ -90,6 +94,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         resumed=true
+        applyWindowColors()
         getSystemService(ActivityManager::class.java).appTasks.forEach { it.setExcludeFromRecents(settings.hideRecents) }
         if(page==4 || page==5) show(page)
         if(page==2) refreshLocalStatus()
@@ -101,20 +106,20 @@ class MainActivity : Activity() {
         it.text=text; it.textSize=size; it.setTextColor(ink); it.setPadding(0,dp(6),0,dp(6)); if(bold) it.setTypeface(null,Typeface.BOLD); parent.addView(it)
     }
     private fun button(text: String,parent: LinearLayout=content,primary: Boolean=false,action: ()->Unit): Button = Button(this).also {
-        it.text=text; it.isAllCaps=false; it.textSize=15f; it.setTextColor(if(primary) Color.WHITE else green)
+        it.text=text; it.isAllCaps=false; it.textSize=15f; it.setTextColor(if(primary) palette.onAccent else green)
         it.stateListAnimator=null; it.elevation=0f; it.minimumHeight=dp(54); it.setPadding(dp(12),dp(10),dp(12),dp(10))
-        val shape=GradientDrawable().apply { setColor(if(primary) green else Color.rgb(232,241,236)); cornerRadius=dp(12).toFloat() }
-        it.background=android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(40,35,121,111)),shape,null)
+        val shape=GradientDrawable().apply { setColor(if(primary) green else palette.control); cornerRadius=dp(12).toFloat() }
+        it.background=android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(palette.ripple),shape,null)
         parent.addView(it,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(5) }); it.setOnClickListener { action() }
     }
     private fun card(): LinearLayout = LinearLayout(this).also {
         it.orientation=LinearLayout.VERTICAL; it.setPadding(dp(18),dp(14),dp(18),dp(14))
-        it.background=GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=dp(20).toFloat() }
+        it.background=GradientDrawable().apply { setColor(palette.surface); cornerRadius=dp(20).toFloat() }
         content.addView(it,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(14); bottomMargin=dp(6) })
     }
     private fun createChrome() {
         navigationButtons.clear()
-        val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(245,247,243)) }
+        val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(palette.background) }
         val top=LinearLayout(this).apply { id=R.id.page_header; setPadding(dp(20),dp(16),dp(20),0); orientation=LinearLayout.VERTICAL }
         label(tr(R.string.app_name),28f,true,top); label(tr(R.string.tagline),13f,parent=top); root.addView(top)
         pageHost=FrameLayout(this).apply { id=R.id.page_host }
@@ -152,7 +157,7 @@ class MainActivity : Activity() {
         navigationButtons.forEachIndexed { index,button ->
             val selected=index==which || index==2 && which>=2
             button.isSelected=selected
-            (button.background as GradientDrawable).setColor(if(selected) Color.rgb(223,237,226) else Color.TRANSPARENT)
+            (button.background as GradientDrawable).setColor(if(selected) palette.selected else Color.TRANSPARENT)
         }
         when(which) { 0 -> home(); 1 -> history(); 2 -> preferences(); 3 -> filtersPage(); 4 -> backgroundPage(); 5 -> localNotificationPage() }
         val direction=when {
@@ -283,7 +288,7 @@ class MainActivity : Activity() {
     private fun noticeCard(parent: LinearLayout,n: Notice,audit: Boolean) {
         val c=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL; setPadding(dp(16),dp(12),dp(16),dp(12))
-            background=GradientDrawable().apply { setColor(Color.WHITE); cornerRadius=dp(16).toFloat() }
+            background=GradientDrawable().apply { setColor(palette.surface); cornerRadius=dp(16).toFloat() }
         }
         parent.addView(c,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(12) })
         label("${n.app} · ${n.title}",15f,true,c)
@@ -332,6 +337,12 @@ class MainActivity : Activity() {
         val languagePicker=MintSpinner(this,listOf(tr(R.string.language_chinese),tr(R.string.language_english)),languages.indexOf(settings.language),tr(R.string.language_title))
         settingsPickers.add(languagePicker)
         content.addView(languagePicker,LinearLayout.LayoutParams(-1,-2))
+        label(tr(R.string.appearance_title),14f,true)
+        val appearances=AppearanceMode.entries.toList()
+        val appearancePicker=MintSpinner(this,listOf(tr(R.string.appearance_system),tr(R.string.appearance_light),tr(R.string.appearance_dark)),appearances.indexOf(settings.appearance),tr(R.string.appearance_title)).apply { id=R.id.appearance_picker }
+        settingsPickers.add(appearancePicker)
+        content.addView(appearancePicker,LinearLayout.LayoutParams(-1,-2))
+        label(tr(R.string.appearance_help),12f)
         val retainedForm=savedForm
         label(tr(R.string.nav_settings),23f,true)
         label(tr(R.string.settings_intro),14f)
@@ -449,6 +460,16 @@ class MainActivity : Activity() {
             val saved=drafts.toMutableMap()
             saved[selected]=AiConfig(selected,api.text.toString(),endpoint.text.toString(),model.text.toString(),prompt.text.toString(),settings.language)
             SettingsDraft(selected,saved,hook.text.toString(),sign.text.toString(),prompt.text.toString(),enabled.isChecked,enabled.tag==true,advanced.visibility==View.VISIBLE,selectedTarget,remoteLoaded,codes.isChecked)
+        }
+        appearancePicker.onItemSelectedListener=object: AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            override fun onItemSelected(parent: AdapterView<*>?,view: View?,position: Int,id: Long) {
+                if(generation!=uiGeneration || position!=appearancePicker.selectedItemPosition || appearances[position]==settings.appearance) return
+                savedForm=captureForm?.invoke()
+                settings.appearance=appearances[position]
+                refreshLanguage(settings.language,force=true)
+                FocusWidgets.refresh(this@MainActivity)
+            }
         }
         languagePicker.onItemSelectedListener=object: AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -616,9 +637,32 @@ class MainActivity : Activity() {
         super.onConfigurationChanged(newConfig)
         refreshLanguage(LocaleHelper.current(this),newConfig)
     }
-    private fun refreshLanguage(language: UiLanguage,configuration: Configuration=baseContext.resources.configuration) {
-        uiResources=LocaleHelper.resourcesFor(baseContext,language,configuration)
-        if(appliedLanguage==language) return
+    private fun updateResources(language: UiLanguage,configuration: Configuration) {
+        val effective=Appearance.configuration(configuration,settings.appearance)
+        uiResources=LocaleHelper.resourcesFor(baseContext,language,effective)
+        // Replace the old theme, including its native input/switch colors, on the same Window.
+        theme.setTo(resources.newTheme().apply { applyStyle(R.style.AppTheme,true) })
+        appliedNight=(effective.uiMode and Configuration.UI_MODE_NIGHT_MASK)==Configuration.UI_MODE_NIGHT_YES
+    }
+    @Suppress("DEPRECATION")
+    private fun applyWindowColors() {
+        // Accessing decorView installs it before PhoneWindow resolves its insets controller.
+        val decor=window.decorView
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(palette.background))
+        window.statusBarColor=palette.background; window.navigationBarColor=palette.background
+        if(Build.VERSION.SDK_INT>=30) {
+            val appearance=android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            window.insetsController?.setSystemBarsAppearance(if(appliedNight) 0 else appearance,appearance)
+        } else {
+            val flags=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            decor.systemUiVisibility=(decor.systemUiVisibility and flags.inv()) or if(appliedNight) 0 else flags
+        }
+    }
+    private fun refreshLanguage(language: UiLanguage,configuration: Configuration=baseContext.resources.configuration,force: Boolean=false) {
+        val oldNight=appliedNight
+        updateResources(language,configuration)
+        applyWindowColors()
+        if(appliedLanguage==language && oldNight==appliedNight && !force) return
         appliedLanguage=language
         rememberScroll()
         if(page==2) savedForm=captureForm?.invoke() ?: savedForm

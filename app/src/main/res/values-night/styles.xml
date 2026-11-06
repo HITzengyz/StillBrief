@@ -1,0 +1,26 @@
+<resources>
+<style name="AppThemeBase" parent="android:style/Theme.Material.NoActionBar">
+    <item name="android:fontFamily">sans</item>
+    <item name="android:colorAccent">@color/sb_accent</item>
+    <item name="android:colorControlNormal">@color/sb_secondary</item>
+    <item name="android:colorControlActivated">@color/sb_accent</item>
+    <item name="android:colorControlHighlight">@color/sb_ripple</item>
+    <item name="android:textColorPrimary">@color/sb_text</item>
+    <item name="android:textColorSecondary">@color/sb_secondary</item>
+    <item name="android:textColorHint">@color/sb_secondary</item>
+    <item name="android:colorBackground">@color/sb_background</item>
+    <item name="android:windowLightStatusBar">false</item>
+    <item name="android:statusBarColor">@color/sb_background</item>
+    <item name="android:navigationBarColor">@color/sb_background</item>
+    <item name="android:windowBackground">@color/sb_background</item>
+</style>
+<style name="MintSpinnerTheme" parent="AppTheme">
+    <item name="android:colorControlNormal">@color/sb_accent</item>
+</style>
+<style name="MintSpinnerPopupTheme" parent="MintSpinnerTheme">
+    <item name="android:listSelector">@drawable/mint_dropdown_selector</item>
+    <item name="android:dropDownSelector">@drawable/mint_dropdown_selector</item>
+    <item name="android:windowBackground">@color/sb_surface</item>
+</style>
+<bool name="sb_light_system_bars">false</bool>
+</resources>

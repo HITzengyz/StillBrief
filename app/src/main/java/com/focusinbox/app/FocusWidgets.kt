@@ -88,9 +88,15 @@ object FocusWidgets {
         for(id in square) manager.updateAppWidget(id,render(context,id,false,state))
         for(id in quick) manager.updateAppWidget(id,renderQuick(context,id,state))
     }
+    /** Fixed variants survive launcher configuration; SYSTEM resources remain owned by the host. */
+    private fun layout(context: Context,wide: Boolean?=null): Int = when(Appearance.mode(context)) {
+        AppearanceMode.SYSTEM -> when(wide) { true -> R.layout.widget_wide; false -> R.layout.widget_square; null -> R.layout.widget_quick }
+        AppearanceMode.LIGHT -> when(wide) { true -> R.layout.widget_wide_light; false -> R.layout.widget_square_light; null -> R.layout.widget_quick_light }
+        AppearanceMode.DARK -> when(wide) { true -> R.layout.widget_wide_dark; false -> R.layout.widget_square_dark; null -> R.layout.widget_quick_dark }
+    }
     fun render(context: Context,id: Int,wide: Boolean,state: WidgetState,now: Long=System.currentTimeMillis(),elapsed: Long=SystemClock.elapsedRealtime()): RemoteViews {
         val c=LocaleHelper.wrap(context)
-        val views=RemoteViews(context.packageName,if(wide) R.layout.widget_wide else R.layout.widget_square)
+        val views=RemoteViews(context.packageName,layout(context,wide))
         bindTime(context,views,state,now,elapsed)
         views.setTextViewText(R.id.widget_mode,c.getString(if(state.loop) R.string.widget_loop else R.string.widget_single))
         if(!wide) views.setTextViewText(R.id.widget_brand,c.getString(R.string.app_name))
@@ -137,7 +143,7 @@ object FocusWidgets {
     }
     fun renderQuick(context: Context,id: Int,state: WidgetState,now: Long=System.currentTimeMillis(),elapsed: Long=SystemClock.elapsedRealtime()): RemoteViews {
         val c=LocaleHelper.wrap(context)
-        val views=RemoteViews(context.packageName,R.layout.widget_quick)
+        val views=RemoteViews(context.packageName,layout(context))
         views.setViewVisibility(R.id.widget_quick_presets,if(state.ready && !state.active) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_quick_active,if(state.ready && state.active) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_quick_setup,if(state.ready) View.GONE else View.VISIBLE)

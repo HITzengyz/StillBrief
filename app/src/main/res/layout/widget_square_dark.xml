@@ -1,0 +1,38 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="10dp" android:background="@drawable/widget_background_dark">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+        <TextView android:id="@+id/widget_brand" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:text="@string/widget_preview_brand" android:textSize="12sp" android:textColor="@color/sb_dark_text"
+            android:fontFamily="sans-serif-medium" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/widget_mode" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="4dp" android:text="@string/widget_preview_mode" android:textSize="12sp"
+            android:textColor="@color/sb_dark_accent" android:maxLines="1" android:ellipsize="end" android:maxWidth="78dp" />
+    </LinearLayout>
+    <FrameLayout android:id="@+id/widget_time_area" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:contentDescription="@string/widget_time_description">
+        <Chronometer android:id="@+id/widget_timer" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:gravity="center" android:textSize="36sp" android:textColor="@color/sb_dark_text" android:fontFamily="sans-serif-medium"
+            android:autoSizeTextType="uniform" android:autoSizeMinTextSize="20sp" android:autoSizeMaxTextSize="36sp" android:autoSizeStepGranularity="1sp"
+            android:includeFontPadding="false" android:singleLine="true" android:visibility="gone" />
+        <TextView android:id="@+id/widget_time_static" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:text="@string/widget_preview_time" android:gravity="center" android:textSize="36sp"
+            android:textColor="@color/sb_dark_text" android:fontFamily="sans-serif-medium" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="20sp" android:autoSizeMaxTextSize="36sp" android:autoSizeStepGranularity="1sp"
+            android:includeFontPadding="false" android:singleLine="true" />
+    </FrameLayout>
+    <TextView android:id="@+id/widget_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/widget_preview_status" android:textSize="12sp" android:textColor="@color/sb_dark_secondary" android:gravity="center"
+        android:maxLines="1" android:ellipsize="end" android:layout_marginBottom="5dp" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp">
+        <Button android:id="@+id/widget_primary" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+            android:text="@string/widget_preview_primary" android:textSize="13sp" android:textColor="@color/sb_dark_on_accent"
+            android:background="@drawable/widget_primary_background_dark" android:textAllCaps="false" android:fontFamily="sans-serif-medium"
+            android:padding="4dp" android:minWidth="0dp" android:minHeight="48dp" android:maxLines="2"
+            android:gravity="center" android:includeFontPadding="false" android:stateListAnimator="@null" />
+        <Button android:id="@+id/widget_secondary" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="6dp"
+            android:text="@string/widget_preview_secondary" android:textSize="13sp" android:textColor="@color/sb_dark_accent"
+            android:background="@drawable/widget_secondary_background_dark" android:textAllCaps="false" android:fontFamily="sans-serif-medium"
+            android:padding="4dp" android:minWidth="0dp" android:minHeight="48dp" android:maxLines="2"
+            android:gravity="center" android:includeFontPadding="false" android:stateListAnimator="@null" />
+    </LinearLayout>
+</LinearLayout>

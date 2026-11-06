@@ -23,23 +23,24 @@ import android.widget.TextView
 import kotlin.math.min
 
 /** All values are a local draft until the explicit confirmation callback. */
-class DurationPicker(context: Context,initialMinutes: Int,private val heading: String,private val confirmed: (Int)->Unit):
-    Dialog(context,android.R.style.Theme_Material_Light_Dialog_NoActionBar) {
+class DurationPicker(baseContext: Context,initialMinutes: Int,private val heading: String,private val confirmed: (Int)->Unit):
+    Dialog(Appearance.wrap(baseContext),R.style.DurationSheetTheme) {
     val dial=DurationDial(context)
     private var numericDialog: AlertDialog?=null
     private val chips=linkedMapOf<Int,Button>()
-    private val green=Color.rgb(35,121,111)
+    private val palette=Appearance.palette(context)
+    private val green=palette.accent
     private fun dp(value: Int)=(value*context.resources.displayMetrics.density).toInt()
     init { dial.setMinutes(initialMinutes); setCancelable(true); setCanceledOnTouchOutside(true) }
-    private fun label(text: String,size: Float,color: Int=Color.rgb(36,67,54))=TextView(context).apply {
+    private fun label(text: String,size: Float,color: Int=palette.text)=TextView(context).apply {
         this.text=text; textSize=size; setTextColor(color); gravity=Gravity.CENTER
     }
     private fun shape(color: Int,radius: Int)=GradientDrawable().apply { setColor(color); cornerRadius=dp(radius).toFloat() }
     private fun action(text: String,primary: Boolean=false)=Button(context).apply {
         this.text=text; isAllCaps=false; textSize=15f; stateListAnimator=null; elevation=0f
         minimumHeight=dp(52); minWidth=0; setPadding(dp(12),dp(10),dp(12),dp(10))
-        background=shape(if(primary) green else Color.rgb(232,241,236),14)
-        setTextColor(if(primary) Color.WHITE else green)
+        background=shape(if(primary) green else palette.control,14)
+        setTextColor(if(primary) palette.onAccent else green)
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,7 +50,7 @@ class DurationPicker(context: Context,initialMinutes: Int,private val heading: S
         val root=LinearLayout(context).apply {
             orientation=LinearLayout.VERTICAL; setPadding(dp(20),dp(14),dp(20),dp(12))
             background=GradientDrawable().apply {
-                setColor(Color.rgb(249,252,249)); cornerRadii=floatArrayOf(dp(28).toFloat(),dp(28).toFloat(),dp(28).toFloat(),dp(28).toFloat(),0f,0f,0f,0f)
+                setColor(palette.surface); cornerRadii=floatArrayOf(dp(28).toFloat(),dp(28).toFloat(),dp(28).toFloat(),dp(28).toFloat(),0f,0f,0f,0f)
             }; clipToOutline=true
         }
         val scroll=object: ScrollView(context) {
@@ -58,12 +59,12 @@ class DurationPicker(context: Context,initialMinutes: Int,private val heading: S
             }
         }.apply { isVerticalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_IF_CONTENT_SCROLLS }
         val body=LinearLayout(context).apply { orientation=LinearLayout.VERTICAL }
-        body.addView(View(context).apply { background=shape(Color.rgb(203,220,208),2); importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO },LinearLayout.LayoutParams(dp(34),dp(4)).apply { gravity=Gravity.CENTER_HORIZONTAL; bottomMargin=dp(16) })
+        body.addView(View(context).apply { background=shape(palette.outline,2); importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO },LinearLayout.LayoutParams(dp(34),dp(4)).apply { gravity=Gravity.CENTER_HORIZONTAL; bottomMargin=dp(16) })
         body.addView(label(heading,19f).apply { setTypeface(null,Typeface.BOLD) },LinearLayout.LayoutParams(-1,-2))
         dial.id=R.id.duration_dial
         body.addView(dial,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(4) })
-        body.addView(label(context.getString(R.string.duration_drag_hint),12f,Color.rgb(108,133,118)),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(16) })
-        body.addView(label(context.getString(R.string.duration_presets_label),12f,Color.rgb(108,133,118)),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(8) })
+        body.addView(label(context.getString(R.string.duration_drag_hint),12f,palette.secondary),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(16) })
+        body.addView(label(context.getString(R.string.duration_presets_label),12f,palette.secondary),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(8) })
         val choices=LinearLayout(context).apply { id=R.id.duration_presets; orientation=LinearLayout.VERTICAL }
         val available=min(metrics.widthPixels,dp(520))-dp(40)
         val single=available>=dp(310) && context.resources.configuration.fontScale<=1.3f
@@ -74,7 +75,7 @@ class DurationPicker(context: Context,initialMinutes: Int,private val heading: S
             group.forEach { minutes ->
                 val chip=action(minutes.toString()).apply {
                     tag=minutes; textSize=14f; minimumHeight=dp(44); setPadding(dp(8),dp(8),dp(8),dp(8))
-                    background=shape(Color.rgb(235,243,237),30)
+                    background=shape(palette.control,30)
                     contentDescription=context.getString(R.string.minutes_value,minutes)
                     setOnClickListener { dial.setMinutes(minutes) }
                 }
@@ -102,6 +103,7 @@ class DurationPicker(context: Context,initialMinutes: Int,private val heading: S
         dial.onValueChanged={ updateChips() }; dial.onExactInput={ exactInput() }; updateChips()
         window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT)); addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            if(Build.VERSION.SDK_INT>=29) decorView.isForceDarkAllowed=false
             attributes=attributes.apply { dimAmount=0.28f }
             if(Build.VERSION.SDK_INT>=30) setDecorFitsSystemWindows(false)
         }
@@ -113,13 +115,14 @@ class DurationPicker(context: Context,initialMinutes: Int,private val heading: S
     private fun updateChips() {
         chips.forEach { (minutes,chip) ->
             val selected=minutes==dial.minutes
-            chip.isSelected=selected; chip.setTextColor(if(selected) Color.WHITE else green)
-            (chip.background as GradientDrawable).setColor(if(selected) green else Color.rgb(235,243,237))
+            chip.isSelected=selected; chip.setTextColor(if(selected) palette.onAccent else green)
+            (chip.background as GradientDrawable).setColor(if(selected) green else palette.control)
         }
     }
     private fun exactInput() {
         if(numericDialog?.isShowing==true) return
         val input=EditText(context).apply {
+            setTextColor(palette.text); setHintTextColor(palette.secondary)
             id=R.id.duration_exact_input; inputType=InputType.TYPE_CLASS_NUMBER; setText(dial.minutes.toString()); setSelectAllOnFocus(true); hint=context.getString(R.string.duration_hint)
         }
         val wrapper=LinearLayout(context).apply { setPadding(dp(24),dp(8),dp(24),0); addView(input,LinearLayout.LayoutParams(-1,-2)) }

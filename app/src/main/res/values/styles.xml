@@ -1,19 +1,27 @@
 <resources>
-<style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-<item name="android:fontFamily">sans</item><item name="android:colorAccent">#23796F</item>
-<item name="android:windowLightStatusBar">true</item><item name="android:statusBarColor">#F5F7F3</item>
-<item name="android:navigationBarColor">#F5F7F3</item><item name="android:windowBackground">#F5F7F3</item>
+<style name="AppThemeBase" parent="android:style/Theme.Material.Light.NoActionBar">
+    <item name="android:fontFamily">sans</item>
+    <item name="android:colorAccent">@color/sb_accent</item>
+    <item name="android:colorControlNormal">@color/sb_secondary</item>
+    <item name="android:colorControlActivated">@color/sb_accent</item>
+    <item name="android:colorControlHighlight">@color/sb_ripple</item>
+    <item name="android:textColorPrimary">@color/sb_text</item>
+    <item name="android:textColorSecondary">@color/sb_secondary</item>
+    <item name="android:textColorHint">@color/sb_secondary</item>
+    <item name="android:colorBackground">@color/sb_background</item>
+    <item name="android:windowLightStatusBar">true</item>
+    <item name="android:statusBarColor">@color/sb_background</item>
+    <item name="android:navigationBarColor">@color/sb_background</item>
+    <item name="android:windowBackground">@color/sb_background</item>
 </style>
 <style name="MintSpinnerTheme" parent="AppTheme">
-<item name="android:colorAccent">#23796F</item>
-<item name="android:colorControlNormal">#23796F</item>
-<item name="android:colorControlActivated">#23796F</item>
-<item name="android:colorControlHighlight">#C9E7D5</item>
+    <item name="android:colorControlNormal">@color/sb_accent</item>
 </style>
 <style name="MintSpinnerPopupTheme" parent="MintSpinnerTheme">
-<item name="android:listSelector">@drawable/mint_dropdown_selector</item>
-<item name="android:dropDownSelector">@drawable/mint_dropdown_selector</item>
-<item name="android:colorControlHighlight">#C9E7D5</item>
-<item name="android:windowBackground">#FFFFFF</item>
+    <item name="android:listSelector">@drawable/mint_dropdown_selector</item>
+    <item name="android:dropDownSelector">@drawable/mint_dropdown_selector</item>
+    <item name="android:windowBackground">@color/sb_surface</item>
 </style>
+<bool name="sb_light_system_bars">true</bool>
+<style name="AppTheme" parent="AppThemeBase" />
 </resources>

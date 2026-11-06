@@ -7,31 +7,31 @@
         <FrameLayout android:id="@+id/widget_time_area" android:layout_width="match_parent" android:layout_height="30dp"
             android:contentDescription="@string/widget_time_description">
             <Chronometer android:id="@+id/widget_timer" android:layout_width="match_parent" android:layout_height="match_parent"
-                android:gravity="start|center_vertical" android:textSize="27sp" android:textColor="#244336" android:fontFamily="sans-serif-medium"
+                android:gravity="start|center_vertical" android:textSize="27sp" android:textColor="@color/sb_text" android:fontFamily="sans-serif-medium"
                 android:autoSizeTextType="uniform" android:autoSizeMinTextSize="18sp" android:autoSizeMaxTextSize="27sp" android:autoSizeStepGranularity="1sp"
                 android:includeFontPadding="false" android:singleLine="true" android:visibility="gone" />
             <TextView android:id="@+id/widget_time_static" android:layout_width="match_parent" android:layout_height="match_parent"
                 android:text="@string/widget_preview_time" android:gravity="start|center_vertical" android:textSize="27sp"
                 android:autoSizeTextType="uniform" android:autoSizeMinTextSize="18sp" android:autoSizeMaxTextSize="27sp" android:autoSizeStepGranularity="1sp"
-                android:textColor="#244336" android:fontFamily="sans-serif-medium" android:includeFontPadding="false" android:singleLine="true" />
+                android:textColor="@color/sb_text" android:fontFamily="sans-serif-medium" android:includeFontPadding="false" android:singleLine="true" />
         </FrameLayout>
         <LinearLayout android:layout_width="match_parent" android:layout_height="18dp" android:gravity="center_vertical">
             <TextView android:id="@+id/widget_mode" android:layout_width="wrap_content" android:layout_height="match_parent"
-                android:text="@string/widget_preview_mode" android:textSize="12sp" android:textColor="#23796F"
+                android:text="@string/widget_preview_mode" android:textSize="12sp" android:textColor="@color/sb_accent"
                 android:fontFamily="sans-serif-medium" android:includeFontPadding="false" android:gravity="center_vertical"
                 android:maxLines="1" android:ellipsize="end" android:maxWidth="72dp" />
             <TextView android:id="@+id/widget_status" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
-                android:layout_marginStart="4dp" android:text="@string/widget_preview_status" android:textSize="12sp" android:textColor="#617B6C"
+                android:layout_marginStart="4dp" android:text="@string/widget_preview_status" android:textSize="12sp" android:textColor="@color/sb_secondary"
                 android:includeFontPadding="false" android:gravity="center_vertical" android:maxLines="1" android:ellipsize="end" />
         </LinearLayout>
     </LinearLayout>
     <Button android:id="@+id/widget_primary" android:layout_width="60dp" android:layout_height="48dp"
-        android:text="@string/widget_preview_primary" android:textSize="13sp" android:textColor="#FFFFFF"
+        android:text="@string/widget_preview_primary" android:textSize="13sp" android:textColor="@color/sb_on_accent"
         android:background="@drawable/widget_primary_background" android:textAllCaps="false" android:fontFamily="sans-serif-medium"
         android:padding="4dp" android:minWidth="0dp" android:minHeight="48dp" android:maxLines="2"
         android:gravity="center" android:includeFontPadding="false" android:stateListAnimator="@null" />
     <Button android:id="@+id/widget_secondary" android:layout_width="60dp" android:layout_height="48dp" android:layout_marginStart="6dp"
-        android:text="@string/widget_end_compact" android:textSize="13sp" android:textColor="#23796F"
+        android:text="@string/widget_end_compact" android:textSize="13sp" android:textColor="@color/sb_accent"
         android:background="@drawable/widget_secondary_background" android:textAllCaps="false" android:fontFamily="sans-serif-medium"
         android:padding="4dp" android:minWidth="0dp" android:minHeight="48dp" android:maxLines="2"
         android:gravity="center" android:includeFontPadding="false" android:stateListAnimator="@null" />

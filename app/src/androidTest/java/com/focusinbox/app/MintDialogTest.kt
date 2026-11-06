@@ -39,10 +39,10 @@ class MintDialogTest {
                 .create().also { it.setOnDismissListener { dismissed++ }; it.show() }
             val shown = dialog!!
             val background = shown.window!!.decorView.background as GradientDrawable
-            assertEquals(Color.rgb(249,252,249), background.color!!.defaultColor)
+            assertEquals(Appearance.palette(activity).surface, background.color!!.defaultColor)
             assertTrue(background.cornerRadius > 0f)
-            assertEquals(Color.WHITE, shown.getButton(AlertDialog.BUTTON_POSITIVE).currentTextColor)
-            assertEquals(Color.rgb(35,121,111), shown.getButton(AlertDialog.BUTTON_NEGATIVE).currentTextColor)
+            assertEquals(Appearance.palette(activity).onAccent, shown.getButton(AlertDialog.BUTTON_POSITIVE).currentTextColor)
+            assertEquals(Appearance.palette(activity).accent, shown.getButton(AlertDialog.BUTTON_NEGATIVE).currentTextColor)
             shown.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
         }
         instrumentation.waitForIdleSync()

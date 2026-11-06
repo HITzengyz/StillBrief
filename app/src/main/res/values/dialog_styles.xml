@@ -1,11 +1,14 @@
 <resources>
     <style name="MintDialogTheme" parent="android:style/Theme.Material.Light.Dialog.Alert">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#23796F</item>
-        <item name="android:colorControlActivated">#23796F</item>
-        <item name="android:colorControlHighlight">#C9E7D5</item>
-        <item name="android:textColorPrimary">#244336</item>
-        <item name="android:textColorSecondary">#6C8576</item>
+        <item name="android:colorAccent">@color/sb_accent</item>
+        <item name="android:colorControlActivated">@color/sb_accent</item>
+        <item name="android:colorControlHighlight">@color/sb_ripple</item>
+        <item name="android:textColorPrimary">@color/sb_text</item>
+        <item name="android:textColorSecondary">@color/sb_secondary</item>
+        <item name="android:textColorHint">@color/sb_secondary</item>
+        <item name="android:colorControlNormal">@color/sb_secondary</item>
+        <item name="android:colorBackground">@color/sb_surface</item>
         <item name="android:windowBackground">@drawable/mint_dialog_background</item>
         <item name="android:windowMinWidthMajor">90%</item>
         <item name="android:windowMinWidthMinor">90%</item>
@@ -16,7 +19,7 @@
     </style>
     <style name="MintDialogButton" parent="android:style/Widget.Material.Button.Borderless">
         <item name="android:background">@drawable/mint_dialog_button</item>
-        <item name="android:textColor">#23796F</item>
+        <item name="android:textColor">@color/sb_accent</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:minHeight">48dp</item>
         <item name="android:paddingLeft">16dp</item>
@@ -25,6 +28,17 @@
     </style>
     <style name="MintDialogPositiveButton" parent="MintDialogButton">
         <item name="android:background">@drawable/mint_dialog_primary_button</item>
-        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textColor">@color/sb_on_accent</item>
+    </style>
+    <style name="DurationSheetTheme" parent="android:style/Theme.Material.Light.Dialog.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/sb_accent</item>
+        <item name="android:colorControlNormal">@color/sb_secondary</item>
+        <item name="android:colorControlActivated">@color/sb_accent</item>
+        <item name="android:colorControlHighlight">@color/sb_ripple</item>
+        <item name="android:textColorPrimary">@color/sb_text</item>
+        <item name="android:textColorSecondary">@color/sb_secondary</item>
+        <item name="android:textColorHint">@color/sb_secondary</item>
+        <item name="android:colorBackground">@color/sb_surface</item>
     </style>
 </resources>

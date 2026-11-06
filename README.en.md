@@ -150,6 +150,9 @@ Analyze is disabled when there is nothing pending or an analysis is already runn
 
 ## Tweaking it to your taste
 
+**Light, dark, or automatic**
+Choose **Light**, **Dark**, or **System default** under **Settings → Appearance**. The default follows your phone, including its scheduled dark theme. All three home-screen widgets use this setting too. Switching appearance keeps your timer and unsaved settings intact.
+
 **Muting noisy apps and status updates**
 
 You don't need an LLM burning tokens on repetitive Wi-Fi status alerts or music player controls. On the **Notifications** tab, tap **Stop collecting…** under any message to block that exact text, that specific notification channel, or the entire app. You can manage or undo these anytime under **Settings → Notification filters**.

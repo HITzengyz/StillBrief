@@ -19,16 +19,17 @@ import android.widget.Spinner
 import android.widget.TextView
 
 /** Separate collapsed/dropdown rows with no inherited OEM selection or popup tint. */
-class MintSpinner(context: Context,labels: List<String>,selected: Int,description: String):
-    Spinner(ContextThemeWrapper(context,R.style.MintSpinnerTheme),null,0,0,MODE_DROPDOWN,popupTheme(context)) {
+class MintSpinner(baseContext: Context,labels: List<String>,selected: Int,description: String):
+    Spinner(ContextThemeWrapper(Appearance.wrap(baseContext),R.style.MintSpinnerTheme),null,0,0,MODE_DROPDOWN,popupTheme(Appearance.wrap(baseContext))) {
     companion object {
-        private val ink=Color.rgb(28,69,51)
-        private val selectedFill=Color.rgb(222,241,229)
-        private val pressedFill=Color.rgb(201,231,213)
         private fun popupTheme(context: Context): Resources.Theme = context.resources.newTheme().apply {
             setTo(context.theme); applyStyle(R.style.MintSpinnerPopupTheme,true)
         }
     }
+    private val palette=Appearance.palette(context)
+    private val ink=palette.text
+    private val selectedFill=palette.selected
+    private val pressedFill=palette.ripple
     private fun dp(value: Int)=(value*resources.displayMetrics.density).toInt()
     private fun rounded(color: Int)=GradientDrawable().apply { setColor(color); cornerRadius=dp(12).toFloat() }
     private fun rowBackground()=StateListDrawable().apply {
@@ -37,7 +38,7 @@ class MintSpinner(context: Context,labels: List<String>,selected: Int,descriptio
         addState(intArrayOf(android.R.attr.state_selected),android.graphics.drawable.ColorDrawable(selectedFill))
         addState(intArrayOf(android.R.attr.state_focused),android.graphics.drawable.ColorDrawable(selectedFill))
         addState(intArrayOf(android.R.attr.state_hovered),android.graphics.drawable.ColorDrawable(selectedFill))
-        addState(intArrayOf(),android.graphics.drawable.ColorDrawable(Color.WHITE))
+        addState(intArrayOf(),android.graphics.drawable.ColorDrawable(palette.surface))
     }
     private fun text()=TextView(this.context).apply {
         textSize=15f; setTextColor(ink); typeface=Typeface.create("sans-serif",Typeface.NORMAL)
@@ -46,9 +47,9 @@ class MintSpinner(context: Context,labels: List<String>,selected: Int,descriptio
     init {
         contentDescription=description
         minimumHeight=dp(52); setPadding(0,0,0,0); backgroundTintList=null
-        val fill=rounded(Color.rgb(239,247,242)).apply { setStroke(dp(1),Color.rgb(207,227,214)) }
+        val fill=rounded(palette.control).apply { setStroke(dp(1),palette.outline) }
         background=RippleDrawable(ColorStateList.valueOf(pressedFill),fill,rounded(Color.WHITE))
-        setPopupBackgroundDrawable(rounded(Color.WHITE))
+        setPopupBackgroundDrawable(rounded(palette.surface))
         dropDownWidth=ViewGroup.LayoutParams.MATCH_PARENT; dropDownVerticalOffset=dp(4); dropDownHorizontalOffset=0
         adapter=object: BaseAdapter() {
             override fun getCount()=labels.size
@@ -65,7 +66,7 @@ class MintSpinner(context: Context,labels: List<String>,selected: Int,descriptio
             }
             override fun getDropDownView(position: Int,convertView: View?,parent: ViewGroup): View {
                 if(parent is ListView) {
-                    parent.background=rounded(Color.WHITE); parent.clipToOutline=true
+                    parent.background=rounded(palette.surface); parent.clipToOutline=true
                     parent.selector=rowBackground(); parent.divider=null; parent.setPadding(0,0,0,0)
                 }
                 return ((convertView as? TextView) ?: text().apply { setPadding(dp(16),dp(12),dp(16),dp(12)) }).apply {

@@ -1,0 +1,7 @@
+<resources>
+    <string name="appearance_title">Appearance</string>
+    <string name="appearance_system">System default</string>
+    <string name="appearance_light">Light</string>
+    <string name="appearance_dark">Dark</string>
+    <string name="appearance_help">System default follows your phone’s light and dark theme settings.</string>
+</resources>

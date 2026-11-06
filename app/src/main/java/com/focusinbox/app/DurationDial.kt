@@ -2,7 +2,6 @@ package com.focusinbox.app
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -19,12 +18,13 @@ import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.sin
 
-class DurationDial(context: Context): View(context) {
+class DurationDial(baseContext: Context): View(Appearance.wrap(baseContext)) {
     var minutes=25
         private set
     var onValueChanged: ((Int)->Unit)?=null
     var onExactInput: (() ->Unit)?=null
-    private val green=Color.rgb(35,121,111)
+    private val palette=Appearance.palette(context)
+    private val green=palette.accent
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
     private val arc=RectF()
     private val scalePaint=Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign=Paint.Align.CENTER; typeface=Typeface.create("sans-serif",Typeface.NORMAL) }
@@ -63,17 +63,17 @@ class DurationDial(context: Context): View(context) {
         val cx=width/2f; val cy=height/2f; val r=radius
         arc.set(cx-r,cy-r,cx+r,cy+r)
         paint.style=Paint.Style.STROKE; paint.strokeWidth=dp(10f); paint.strokeCap=Paint.Cap.ROUND
-        paint.color=Color.rgb(225,236,229); canvas.drawArc(arc,DurationGeometry.START,DurationGeometry.SWEEP,false,paint)
+        paint.color=palette.track; canvas.drawArc(arc,DurationGeometry.START,DurationGeometry.SWEEP,false,paint)
         paint.color=green; canvas.drawArc(arc,DurationGeometry.START,DurationGeometry.angle(minutes)-DurationGeometry.START,false,paint)
         paint.strokeWidth=dp(1f)
         for(value in 1..180) if(value==1 || value%5==0) {
             val angle=Math.toRadians(DurationGeometry.angle(value).toDouble())
             val major=value==1 || value%15==0
             val inner=r+dp(11f); val outer=inner+dp(if(major) 6f else 3f)
-            paint.color=if(value<=minutes) Color.rgb(107,153,137) else Color.rgb(204,219,209)
+            paint.color=if(value<=minutes) palette.tickActive else palette.tick
             canvas.drawLine(cx+cos(angle).toFloat()*inner,cy+sin(angle).toFloat()*inner,cx+cos(angle).toFloat()*outer,cy+sin(angle).toFloat()*outer,paint)
         }
-        scalePaint.textSize=scaleTextSize(); scalePaint.color=Color.rgb(108,133,118)
+        scalePaint.textSize=scaleTextSize(); scalePaint.color=palette.secondary
         val metrics=scalePaint.fontMetrics
         for(value in listOf(30,60,90,120,150,180)) {
             val labelAngle=Math.toRadians(DurationGeometry.angle(value).toDouble())
@@ -82,7 +82,7 @@ class DurationDial(context: Context): View(context) {
         }
         val angle=Math.toRadians(DurationGeometry.angle(minutes).toDouble())
         val x=cx+cos(angle).toFloat()*r; val y=cy+sin(angle).toFloat()*r
-        paint.style=Paint.Style.FILL; paint.color=Color.WHITE; canvas.drawCircle(x,y,dp(10f),paint)
+        paint.style=Paint.Style.FILL; paint.color=palette.surface; canvas.drawCircle(x,y,dp(10f),paint)
         paint.color=green; canvas.drawCircle(x,y,dp(6f),paint)
         paint.textAlign=Paint.Align.CENTER
         val entries=listOf(
@@ -99,7 +99,7 @@ class DurationDial(context: Context): View(context) {
         var top=cy-(heights.sum()*scale+gaps)/2
         entries.forEachIndexed { index,(text,_,face) ->
             paint.typeface=face; paint.textSize=sizes[index]*scale
-            paint.color=when(index) { 0 -> Color.rgb(25,64,53); 1 -> Color.rgb(92,121,108); else -> Color.rgb(123,147,135) }
+            paint.color=when(index) { 0 -> palette.text; 1 -> palette.secondary; else -> palette.secondary }
             val metrics=paint.fontMetrics
             canvas.drawText(text,cx,top-metrics.ascent,paint)
             top+=metrics.descent-metrics.ascent+if(index==0) dp(5f) else dp(9f)

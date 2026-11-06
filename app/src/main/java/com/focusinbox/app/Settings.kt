@@ -29,6 +29,7 @@ class Settings(context: Context, prefsName: String = "settings") {
         }
     } }
     var language: UiLanguage get() = UiLanguage.fromTag(prefs.getString("language","zh")); set(v) { synchronized(lock) { prefs.edit().putString("language",v.tag).commit() } }
+    var appearance: AppearanceMode get() = AppearanceMode.fromStored(prefs.getString("appearance",null)); set(v) { synchronized(lock) { prefs.edit().putString("appearance",v.name).commit() } }
     val destination: DeliveryTarget get() = DeliveryTarget.fromStored(prefs.getString("destination",DeliveryTarget.LOCAL.name)!!)
     val provider: Provider get() = Provider.fromId(prefs.getString("provider",Provider.DEEPSEEK.id)!!)
     var enabled: Boolean get() = prefs.getBoolean("enabled", false); set(v) { synchronized(lock) { prefs.edit().putBoolean("enabled", v).commit() } }

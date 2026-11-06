@@ -20,8 +20,10 @@ import android.widget.LinearLayout
 import android.widget.Toast
 
 /** The value is the current provider's form draft; actions never save it. */
-class ApiKeyField(context: Context,initial: String): LinearLayout(context) {
+class ApiKeyField(baseContext: Context,initial: String): LinearLayout(Appearance.wrap(baseContext)) {
+    private val palette=Appearance.palette(context)
     val editText=EditText(context).apply {
+        setTextColor(palette.text); setHintTextColor(palette.secondary)
         id=R.id.api_key_input; textSize=14f
         inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         setSingleLine(true); maskSecret(); setText(initial)
@@ -31,7 +33,7 @@ class ApiKeyField(context: Context,initial: String): LinearLayout(context) {
     private val copy: ImageButton
     private val clear: ImageButton
     private var revealed=false
-    private val green=Color.rgb(35,121,111)
+    private val green=palette.accent
     private fun dp(value: Int)=(value*resources.displayMetrics.density).toInt()
     init {
         orientation=HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
@@ -65,7 +67,7 @@ class ApiKeyField(context: Context,initial: String): LinearLayout(context) {
         it.id=viewId; it.setImageResource(icon); it.imageTintList=ColorStateList.valueOf(green)
         it.contentDescription=context.getString(description); it.tooltipText=it.contentDescription
         it.setPadding(dp(12),dp(12),dp(12),dp(12))
-        it.background=RippleDrawable(ColorStateList.valueOf(Color.argb(35,35,121,111)),GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=dp(12).toFloat() },null)
+        it.background=RippleDrawable(ColorStateList.valueOf(palette.ripple),GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=dp(12).toFloat() },null)
         addView(it,LayoutParams(dp(48),dp(48))); it.setOnClickListener { click() }
     }
     private fun updateReveal() {
