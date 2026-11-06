@@ -1,0 +1,15 @@
+<resources>
+    <string name="quick_widget_name">息间 · 快捷专注</string>
+    <string name="quick_widget_description">点击25、35或45分钟开始专注，随时暂停或继续。</string>
+    <string name="quick_preset_description">开始%1$d分钟专注</string>
+    <string name="quick_pause">暂停</string>
+    <string name="quick_resume">继续</string>
+    <string name="quick_setup">完成设置</string>
+    <string name="quick_start_25">25</string>
+    <string name="quick_start_35">35</string>
+    <string name="quick_start_45">45</string>
+    <string name="quick_start_25_accessibility">开始25分钟专注</string>
+    <string name="quick_start_35_accessibility">开始35分钟专注</string>
+    <string name="quick_start_45_accessibility">开始45分钟专注</string>
+    <string name="quick_preview_time">25:00</string>
+</resources>

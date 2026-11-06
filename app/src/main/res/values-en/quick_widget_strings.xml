@@ -1,0 +1,15 @@
+<resources>
+    <string name="quick_widget_name">StillBrief · Quick focus</string>
+    <string name="quick_widget_description">Tap 25, 35 or 45 minutes to start focus, then pause or resume anytime.</string>
+    <string name="quick_preset_description">Start a %1$d-minute focus session</string>
+    <string name="quick_pause">Pause</string>
+    <string name="quick_resume">Resume</string>
+    <string name="quick_setup">Set up</string>
+    <string name="quick_start_25">25</string>
+    <string name="quick_start_35">35</string>
+    <string name="quick_start_45">45</string>
+    <string name="quick_start_25_accessibility">Start a 25-minute focus session</string>
+    <string name="quick_start_35_accessibility">Start a 35-minute focus session</string>
+    <string name="quick_start_45_accessibility">Start a 45-minute focus session</string>
+    <string name="quick_preview_time">25:00</string>
+</resources>

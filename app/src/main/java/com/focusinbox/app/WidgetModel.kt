@@ -1,6 +1,6 @@
 package com.focusinbox.app
 
-enum class WidgetAction { START, RESUME, ANALYZE, END, SETUP }
+enum class WidgetAction { START, START_25, START_35, START_45, PAUSE, RESUME, ANALYZE, END, SETUP }
 
 data class WidgetState(
     val timerState: String, val token: Long, val end: Long, val remaining: Long,
@@ -16,7 +16,8 @@ data class WidgetState(
     }
     val primaryEnabled get()=primary!=WidgetAction.ANALYZE || (!busy && pending>0)
     fun allows(action: WidgetAction,expectedToken: Long): Boolean = token==expectedToken && when(action) {
-        WidgetAction.START -> ready && timerState=="IDLE"
+        WidgetAction.START,WidgetAction.START_25,WidgetAction.START_35,WidgetAction.START_45 -> ready && timerState=="IDLE"
+        WidgetAction.PAUSE -> timerState=="RUNNING"
         WidgetAction.RESUME -> ready && timerState=="PAUSED"
         WidgetAction.ANALYZE -> ready && timerState=="RUNNING" && !busy && pending>0
         WidgetAction.END -> active

@@ -78,7 +78,7 @@ Because Android is aggressive about killing background apps, taking two minutes 
 
 ### 1. Install and lock in background permissions
 
-Grab **StillBrief-2.0.apk** from [Releases](https://github.com/HITzengyz/StillBrief/releases/latest) (requires Android 8.0+).
+Grab the latest **StillBrief APK** from [Releases](https://github.com/HITzengyz/StillBrief/releases/latest) (requires Android 8.0+).
 
 Head to **Settings → Background operation**:
 
@@ -132,7 +132,9 @@ Flip your phone face down. If nothing pops up, you're good to keep going.
 
 ## Control focus from your home screen
 
-Long-press an empty area of your home screen, find **StillBrief** in the widget picker, and add the **4×1 bar** or **2×2 tile**.
+Long-press an empty area of your home screen, find **StillBrief** in the widget picker, and add **2×1 Quick focus**, the **4×1 bar**, or the **2×2 tile**.
+
+**2×1 Quick focus** starts a session with one tap on **25, 35, or 45** minutes. Once running, tap **Pause**, then **Resume** when ready. It follows the Single or Loop mode selected in the app. Every loop uses the chosen preset without changing your saved default duration.
 
 The countdown stays in sync with the app. Buttons work directly, without a confirmation dialog or opening the app:
 
@@ -140,7 +142,7 @@ The countdown stays in sync with the app. Buttons work directly, without a confi
 - **End & analyze** ends this round, analyzes the remaining messages, and stops the loop.
 - When idle, tap **Start focus**; when paused, tap **Resume**. Tap the countdown to open Focus and change the duration or mode.
 
-Analyze is disabled when there is nothing pending or an analysis is already running. Both widgets control the same focus session.
+Analyze is disabled when there is nothing pending or an analysis is already running. All three widgets control the same focus session; analysis controls are on the 4×1 bar and 2×2 tile.
 
 <p><img src="docs/images/widgets.png" width="360" alt="Actual 4×1 and 2×2 Android widget controls with demonstration data"></p>
 

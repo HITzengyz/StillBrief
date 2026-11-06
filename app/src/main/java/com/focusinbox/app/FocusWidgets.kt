@@ -66,6 +66,10 @@ object FocusWidgets {
             TimerEngine.restore(context)
             if(snapshot(context).allows(action,token)) when(action) {
                 WidgetAction.START,WidgetAction.RESUME -> TimerEngine.start(context)
+                WidgetAction.START_25 -> TimerEngine.start(context,25)
+                WidgetAction.START_35 -> TimerEngine.start(context,35)
+                WidgetAction.START_45 -> TimerEngine.start(context,45)
+                WidgetAction.PAUSE -> TimerEngine.pause(context,token)
                 WidgetAction.ANALYZE -> BatchEngine.trigger(context,token)
                 WidgetAction.END -> TimerEngine.rest(context,token)
                 WidgetAction.SETUP -> Unit
@@ -77,23 +81,17 @@ object FocusWidgets {
         val manager=AppWidgetManager.getInstance(context)
         val wide=manager.getAppWidgetIds(ComponentName(context,FocusWideWidget::class.java))
         val square=manager.getAppWidgetIds(ComponentName(context,FocusSquareWidget::class.java))
-        if(wide.isEmpty() && square.isEmpty()) return
+        val quick=manager.getAppWidgetIds(ComponentName(context,FocusQuickWidget::class.java))
+        if(wide.isEmpty() && square.isEmpty() && quick.isEmpty()) return
         val state=snapshot(context)
         for(id in wide) manager.updateAppWidget(id,render(context,id,true,state))
         for(id in square) manager.updateAppWidget(id,render(context,id,false,state))
+        for(id in quick) manager.updateAppWidget(id,renderQuick(context,id,state))
     }
     fun render(context: Context,id: Int,wide: Boolean,state: WidgetState,now: Long=System.currentTimeMillis(),elapsed: Long=SystemClock.elapsedRealtime()): RemoteViews {
         val c=LocaleHelper.wrap(context)
         val views=RemoteViews(context.packageName,if(wide) R.layout.widget_wide else R.layout.widget_square)
-        val left=state.remainingAt(now)
-        val ticking=state.timerState=="RUNNING" && left>0
-        views.setViewVisibility(R.id.widget_timer,if(ticking) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.widget_time_static,if(ticking) View.GONE else View.VISIBLE)
-        views.setTextViewText(R.id.widget_time_static,WidgetState.time(left))
-        views.setChronometerCountDown(R.id.widget_timer,true)
-        views.setChronometer(R.id.widget_timer,elapsed+left,null,ticking)
-        views.setOnClickPendingIntent(R.id.widget_time_area,open(context,0))
-        views.setContentDescription(R.id.widget_time_area,c.getString(R.string.widget_open_focus))
+        bindTime(context,views,state,now,elapsed)
         views.setTextViewText(R.id.widget_mode,c.getString(if(state.loop) R.string.widget_loop else R.string.widget_single))
         if(!wide) views.setTextViewText(R.id.widget_brand,c.getString(R.string.app_name))
         val failed=state.lastState in setOf("FAILED","SEND_FAILED","UNCERTAIN")
@@ -125,6 +123,40 @@ object FocusWidgets {
         views.setOnClickPendingIntent(R.id.widget_secondary,command(context,id,WidgetAction.END,state.token))
         return views
     }
+    private fun bindTime(context: Context,views: RemoteViews,state: WidgetState,now: Long,elapsed: Long) {
+        val c=LocaleHelper.wrap(context)
+        val left=state.remainingAt(now)
+        val ticking=state.timerState=="RUNNING" && left>0
+        views.setViewVisibility(R.id.widget_timer,if(ticking) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_time_static,if(ticking) View.GONE else View.VISIBLE)
+        views.setTextViewText(R.id.widget_time_static,WidgetState.time(left))
+        views.setChronometerCountDown(R.id.widget_timer,true)
+        views.setChronometer(R.id.widget_timer,elapsed+left,null,ticking)
+        views.setOnClickPendingIntent(R.id.widget_time_area,open(context,0))
+        views.setContentDescription(R.id.widget_time_area,c.getString(R.string.widget_open_focus))
+    }
+    fun renderQuick(context: Context,id: Int,state: WidgetState,now: Long=System.currentTimeMillis(),elapsed: Long=SystemClock.elapsedRealtime()): RemoteViews {
+        val c=LocaleHelper.wrap(context)
+        val views=RemoteViews(context.packageName,R.layout.widget_quick)
+        views.setViewVisibility(R.id.widget_quick_presets,if(state.ready && !state.active) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_quick_active,if(state.ready && state.active) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_quick_setup,if(state.ready) View.GONE else View.VISIBLE)
+        for((viewId,minutes,action) in listOf(
+            Triple(R.id.widget_preset_25,25,WidgetAction.START_25),
+            Triple(R.id.widget_preset_35,35,WidgetAction.START_35),
+            Triple(R.id.widget_preset_45,45,WidgetAction.START_45))) {
+            views.setContentDescription(viewId,c.getString(R.string.quick_preset_description,minutes))
+            views.setOnClickPendingIntent(viewId,command(context,id,action,state.token))
+        }
+        bindTime(context,views,state,now,elapsed)
+        val paused=state.timerState=="PAUSED"
+        views.setTextViewText(R.id.widget_primary,c.getString(if(paused) R.string.quick_resume else R.string.quick_pause))
+        views.setOnClickPendingIntent(R.id.widget_primary,command(context,id,if(paused) WidgetAction.RESUME else WidgetAction.PAUSE,state.token))
+        views.setTextViewText(R.id.widget_quick_setup,c.getString(R.string.quick_setup))
+        views.setOnClickPendingIntent(R.id.widget_quick_setup,open(context,2))
+        return views
+    }
+
 }
 
 open class FocusWidgetProvider : AppWidgetProvider() {
@@ -136,6 +168,7 @@ open class FocusWidgetProvider : AppWidgetProvider() {
 }
 class FocusWideWidget : FocusWidgetProvider()
 class FocusSquareWidget : FocusWidgetProvider()
+class FocusQuickWidget : FocusWidgetProvider()
 
 class WidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context,intent: Intent) {

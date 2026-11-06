@@ -240,9 +240,10 @@ class Store(context: Context, databaseName: String = "inbox.db", private val leg
         writableDatabase.execSQL("UPDATE focus_rounds SET mode=? WHERE id=?",arrayOf(mode.name,t.roundId))
         writeTimer(changed); changed
     }
-    fun pauseFocus(now: Long=System.currentTimeMillis()): Timer = transaction {
+    fun pauseFocus(now: Long=System.currentTimeMillis(),expectedToken: Long?=null): Timer = transaction {
         advanceLocked(now)
         val t=timer()
+        if(expectedToken!=null && t.token!=expectedToken) return@transaction t
         if(t.state!="RUNNING") return@transaction t
         val paused=t.copy(state="PAUSED",end=0,remaining=(t.end-now).coerceAtLeast(0),token=nextToken(t,now))
         writableDatabase.execSQL("UPDATE focus_rounds SET endAt=0 WHERE id=?",arrayOf(t.roundId))

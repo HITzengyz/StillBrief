@@ -19,6 +19,39 @@ class FocusSessionStoreTest {
     @After fun after() { db.close(); context.deleteDatabase(name) }
     private fun n(at: Long,body: String="message",key: String="key")=Notice(key=key,pkg="chat",app="Chat",title="Friend",body=body,at=at,kind="private",sourceTime=at)
     private fun count(table: String)=db.readableDatabase.rawQuery("SELECT COUNT(*) FROM $table",null).use { it.moveToFirst(); it.getLong(0) }
+    @Test fun presetIntervalSurvivesPauseResumeAndSeveralLoopBoundaries() {
+        var now=1000L
+        for(minutes in listOf(25,35,45)) {
+            val first=db.startFocus(minutes,FocusMode.LOOP,now)
+            val interval=minutes*60_000L
+            assertEquals(interval,first.interval)
+            val paused=db.pauseFocus(now+10_000,expectedToken=first.token)
+            assertEquals("PAUSED",paused.state)
+            assertEquals(interval-10_000,paused.remaining)
+            val resumed=db.startFocus(90,FocusMode.SINGLE,now+20_000)
+            assertEquals(first.roundId,resumed.roundId)
+            assertEquals(interval,resumed.interval)
+            assertEquals(FocusMode.LOOP,resumed.mode)
+            db.advanceTimer(resumed.token,resumed.end)
+            val next=db.timer()
+            assertEquals(interval,next.end-next.start)
+            db.advanceTimer(next.token,next.end)
+            assertEquals(interval,db.timer().end-db.timer().start)
+            now=db.timer().end+1
+            db.stopFocus(now)
+        }
+    }
+    @Test fun staleQuickPauseCannotPauseTheNextLoopRound() {
+        val first=db.startFocus(1,FocusMode.LOOP,1000)
+        val next=db.pauseFocus(61000,expectedToken=first.token)
+        assertEquals("RUNNING",next.state)
+        assertNotEquals(first.token,next.token)
+        assertEquals(next,db.pauseFocus(62000,expectedToken=first.token))
+        val paused=db.pauseFocus(63000,expectedToken=next.token)
+        assertEquals("PAUSED",paused.state)
+        assertEquals(58000L,paused.remaining)
+        assertEquals(paused,db.pauseFocus(64000,expectedToken=next.token))
+    }
     @Test fun staleWidgetCommandsAtBoundaryCannotAffectNextLoopRound() {
         val first=db.startFocus(1,FocusMode.LOOP,1000)
         db.insert(n(2000,"first"))

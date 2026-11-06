@@ -190,4 +190,99 @@ class FocusWidgetTest {
             ins.runOnMainSync { activity.finish() }
         }
     }
+    @Test fun quickLayoutsFitThreeWidthsAndBothLanguagesAcrossAllStates() {
+        val activity=ins.startActivitySync(Intent(c,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
+        val language=Settings(c).language
+        val now=System.currentTimeMillis()
+        val base=WidgetState("RUNNING",7,now+10_800_000,10_800_000,180,true,0,false,true)
+        try {
+            for(lang in UiLanguage.entries) {
+                ins.runOnMainSync { LocaleHelper.change(activity,lang) }; ins.waitForIdleSync()
+                for(width in listOf(164,200,300)) for(state in listOf(base,base.copy(timerState="PAUSED"),base.copy(timerState="IDLE"),base.copy(ready=false))) {
+                    ins.runOnMainSync {
+                        val view=FocusWidgets.renderQuick(c,124,state,now).apply(activity,FrameLayout(activity))
+                        activity.setContentView(view)
+                        view.measure(View.MeasureSpec.makeMeasureSpec(dp(width),View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(dp(64),View.MeasureSpec.EXACTLY))
+                        view.layout(0,0,dp(width),dp(64))
+                        assertEquals(if(!state.ready) View.VISIBLE else View.GONE,view.findViewById<View>(R.id.widget_quick_setup).visibility)
+                        assertEquals(if(state.ready && !state.active) View.VISIBLE else View.GONE,view.findViewById<View>(R.id.widget_quick_presets).visibility)
+                        assertEquals(if(state.ready && state.active) View.VISIBLE else View.GONE,view.findViewById<View>(R.id.widget_quick_active).visibility)
+                        if(state.ready && !state.active) for(id in listOf(R.id.widget_preset_25,R.id.widget_preset_35,R.id.widget_preset_45)) {
+                            val button=view.findViewById<Button>(id)
+                            assertTrue(button.width>=dp(48)); assertTrue(button.height>=dp(48))
+                        }
+                        if(state.ready && state.timerState=="PAUSED") {
+                            val time=view.findViewById<TextView>(R.id.widget_time_static)
+                            assertEquals("180:00",time.text.toString())
+                            assertTrue(time.paint.measureText(time.text.toString())<=time.width)
+                            assertTrue(time.lineHeight<=time.height)
+                        }
+                        if(state.ready && state.active) assertEquals(activity.getString(if(state.timerState=="PAUSED") R.string.quick_resume else R.string.quick_pause),view.findViewById<Button>(R.id.widget_primary).text)
+                    }
+                }
+            }
+        } finally { ins.runOnMainSync { LocaleHelper.change(activity,language); activity.finish() } }
+    }
+    @Test fun actualQuickHostStartsPresetPausesAndResumesWithoutOpeningAppOrChangingDefault() {
+        val settings=Settings(c); val saved=settings.snapshot(); val minutes=settings.minutes; val mode=settings.focusMode
+        TimerEngine.rest(c); Store(c).use { it.clear() }
+        settings.saveBasic(Provider.DEEPSEEK,"quick-widget-test-only","https://open.feishu.cn/open-apis/bot/v2/hook/quick-widget-test-only",true,DeliveryTarget.FEISHU)
+        settings.minutes=90; settings.focusMode=FocusMode.LOOP
+        val activity=ins.startActivitySync(Intent(c,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)) as MainActivity
+        val host=AppWidgetHost(c,2400); val manager=AppWidgetManager.getInstance(c)
+        val ids=mutableListOf<Int>(); var quick: AppWidgetHostView?=null
+        try {
+            ins.uiAutomation.adoptShellPermissionIdentity("android.permission.BIND_APPWIDGET")
+            val info=manager.installedProviders.first { it.provider==ComponentName(c,FocusQuickWidget::class.java) }
+            val id=host.allocateAppWidgetId(); ids.add(id)
+            assertTrue(manager.bindAppWidgetIdIfAllowed(id,info.provider))
+            val marker=FrameLayout(activity)
+            ins.runOnMainSync {
+                quick=host.createView(activity,id,info)
+                marker.addView(quick,FrameLayout.LayoutParams(dp(200),dp(90)))
+                activity.setContentView(marker); host.startListening()
+            }
+            FocusWidgets.updateAll(c)
+            for((buttonId,preset) in listOf(R.id.widget_preset_25 to 25,R.id.widget_preset_35 to 35,R.id.widget_preset_45 to 45)) {
+                // initialLayout is already visible before the host receives live RemoteViews.
+                // Wait for the actual command binding, not just the preview's preset row.
+                waitFor("Preset $preset must receive its command binding") {
+                    var bound=false
+                    ins.runOnMainSync {
+                        val button=quick?.findViewById<Button>(buttonId)
+                        bound=quick?.findViewById<View>(R.id.widget_quick_presets)?.visibility==View.VISIBLE &&
+                            button?.hasOnClickListeners()==true
+                    }
+                    bound
+                }
+                ins.runOnMainSync { assertTrue("Preset $preset click must dispatch",quick!!.findViewById<Button>(buttonId).performClick()) }
+                waitFor("Preset $preset should start directly") { Store(c).use { it.timer().state=="RUNNING" && it.timer().interval==preset*60_000L } }
+                val first=Store(c).use { it.timer() }
+                assertEquals(90,settings.minutes)
+                waitFor("Quick host should show running controls") { quick?.findViewById<View>(R.id.widget_quick_active)?.visibility==View.VISIBLE }
+                // Repeated stale preset commands must not restart or resize this round.
+                FocusWidgets.command(c,id,WidgetAction.START_45,first.token-1).send()
+                assertEquals(first,Store(c).use { it.timer() })
+                ins.runOnMainSync { assertTrue("Preset $preset pause must dispatch",quick!!.findViewById<Button>(R.id.widget_primary).performClick()) }
+                waitFor("Pause should execute directly") { Store(c).use { it.timer().state=="PAUSED" } }
+                val paused=Store(c).use { it.timer() }
+                assertEquals(first.roundId,paused.roundId)
+                waitFor("Host should display Resume") { quick?.findViewById<Button>(R.id.widget_primary)?.text==LocaleHelper.wrap(c).getString(R.string.quick_resume) }
+                ins.runOnMainSync { assertTrue("Preset $preset resume must dispatch",quick!!.findViewById<Button>(R.id.widget_primary).performClick()) }
+                waitFor("Resume should keep the preset interval") { Store(c).use { it.timer().state=="RUNNING" && it.timer().interval==preset*60_000L } }
+                assertEquals(first.roundId,Store(c).use { it.timer().roundId })
+                assertEquals(90,settings.minutes)
+                ins.waitForIdleSync(); assertTrue(marker.isAttachedToWindow); assertFalse(activity.isFinishing)
+                TimerEngine.rest(c)
+                waitFor("Quick host should return to presets") { quick?.findViewById<View>(R.id.widget_quick_presets)?.visibility==View.VISIBLE }
+            }
+        } finally {
+            host.stopListening(); ids.forEach { host.deleteAppWidgetId(it) }; host.deleteHost()
+            ins.uiAutomation.dropShellPermissionIdentity(); TimerEngine.rest(c)
+            settings.saveBasic(saved.ai.provider,saved.ai.key,saved.webhook,saved.enabled,saved.target)
+            settings.minutes=minutes; settings.focusMode=mode
+            ins.runOnMainSync { activity.finish() }
+        }
+    }
+
 }

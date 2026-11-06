@@ -98,10 +98,10 @@ object TimerEngine {
         c.getSystemService(AlarmManager::class.java).cancel(pending(c,token))
         WorkManager.getInstance(c).cancelUniqueWork("focus-timer-$token")
     }
-    @Synchronized fun start(c: Context) {
+    @Synchronized fun start(c: Context,durationMinutes: Int?=null) {
         val old=Store(c).use { it.timer() }
         val s=Settings(c)
-        val t=Store(c).use { it.startFocus(s.minutes,s.focusMode) }
+        val t=Store(c).use { it.startFocus(durationMinutes ?: s.minutes,s.focusMode) }
         if(old.token!=t.token) cancel(c,old.token)
         schedule(c,t); BatchEngine.resume(c); FocusWidgets.refresh(c)
     }
@@ -112,10 +112,11 @@ object TimerEngine {
         if(old.token!=current.token) cancel(c,old.token)
         schedule(c,current); BatchEngine.resume(c); FocusWidgets.refresh(c)
     }
-    @Synchronized fun pause(c: Context) {
+    @Synchronized fun pause(c: Context,expectedToken: Long?=null) {
         val old=Store(c).use { it.timer() }
-        Store(c).use { it.pauseFocus() }
-        cancel(c,old.token); BatchEngine.resume(c); FocusWidgets.refresh(c)
+        Store(c).use { it.pauseFocus(expectedToken=expectedToken) }
+        cancel(c,old.token)
+        schedule(c,Store(c).use { it.timer() }); BatchEngine.resume(c); FocusWidgets.refresh(c)
     }
     @Synchronized fun rest(c: Context,expectedToken: Long?=null) {
         val old=Store(c).use { it.timer() }

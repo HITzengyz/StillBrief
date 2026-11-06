@@ -39,4 +39,17 @@ class WidgetModelTest {
         assertEquals("00:01",WidgetState.time(1))
         assertEquals("00:00",WidgetState.time(-1))
     }
+    @Test fun quickPresetsRequireIdleAndPauseRequiresTheCurrentRunningToken() {
+        for(action in listOf(WidgetAction.START_25,WidgetAction.START_35,WidgetAction.START_45)) {
+            assertTrue(running.copy(timerState="IDLE").allows(action,7))
+            assertFalse(running.allows(action,7))
+            assertFalse(running.copy(timerState="PAUSED").allows(action,7))
+            assertFalse(running.copy(timerState="IDLE",ready=false).allows(action,7))
+        }
+        assertTrue(running.copy(busy=true,pending=0).allows(WidgetAction.PAUSE,7))
+        assertFalse(running.allows(WidgetAction.PAUSE,6))
+        assertFalse(running.copy(timerState="PAUSED").allows(WidgetAction.PAUSE,7))
+        assertFalse(running.copy(timerState="IDLE").allows(WidgetAction.PAUSE,7))
+    }
+
 }
