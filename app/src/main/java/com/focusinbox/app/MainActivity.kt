@@ -48,11 +48,17 @@ class MainActivity : Activity() {
     override fun getResources(): Resources = uiResources ?: super.getResources()
     override fun getAssets(): AssetManager = uiResources?.assets ?: super.getAssets()
     private lateinit var pageHost: FrameLayout
+    private lateinit var pageActions: LinearLayout
     private lateinit var pageTransition: PageTransition
     private val navigationButtons=mutableListOf<Button>()
+    private var focusProgress: FocusProgressView?=null
+    private var focusAlerts: LinearLayout?=null
+    private var historyTab=0
     private var clock: TextView?=null
     private var status: TextView?=null
     private var pending: TextView?=null
+    private var nextCheck: TextView?=null
+    private var lastSummary: TextView?=null
     private var startButton: Button?=null
     private var pauseButton: Button?=null
     private var restButton: Button?=null
@@ -102,7 +108,7 @@ class MainActivity : Activity() {
     override fun onPause() { apiKeyField?.conceal(); resumed=false; handler.removeCallbacks(tick); UiMotion.settle(content); pageTransition.finish(); FocusWidgets.refresh(this); super.onPause() }
     override fun onDestroy() { handler.removeCallbacks(tick); pageTransition.clear(); clearPickers(); dismissDialogs(); captureForm=null; super.onDestroy() }
     private fun label(text: String,size: Float=15f,bold: Boolean=false,parent: LinearLayout=content): TextView = TextView(this).also {
-        it.text=text; it.textSize=size; it.setTextColor(ink); it.setPadding(0,dp(6),0,dp(6)); UiStyle.text(it,if(bold) 600 else 400); parent.addView(it)
+        it.text=text; it.textSize=size; it.setTextColor(if(size<=13f) palette.secondary else ink); it.setPadding(0,dp(6),0,dp(6)); UiStyle.text(it,if(bold) 600 else 400); parent.addView(it)
     }
     private fun button(text: String,parent: LinearLayout=content,primary: Boolean=false,action: ()->Unit): Button = Button(this).also {
         it.text=text; it.isAllCaps=false; it.textSize=15f; UiStyle.text(it,500); it.setTextColor(if(primary) palette.onAccent else green)
@@ -120,14 +126,17 @@ class MainActivity : Activity() {
         navigationButtons.clear()
         val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(palette.background) }
         val top=LinearLayout(this).apply { id=R.id.page_header; setPadding(dp(20),dp(16),dp(20),0); orientation=LinearLayout.VERTICAL }
-        label(tr(R.string.app_name),28f,true,top); label(tr(R.string.tagline),13f,parent=top); root.addView(top)
+        label(tr(R.string.app_name),16f,true,top); root.addView(top)
         pageHost=FrameLayout(this).apply { id=R.id.page_host }
         root.addView(pageHost,LinearLayout.LayoutParams(-1,0,1f))
         pageTransition=PageTransition(pageHost)
+        pageActions=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(20),0,dp(20),dp(8)); visibility=View.GONE }
+        root.addView(pageActions,LinearLayout.LayoutParams(-1,-2))
         val nav=LinearLayout(this).apply { id=R.id.page_navigation; gravity=Gravity.CENTER; setPadding(dp(12),0,dp(12),dp(6)) }
         listOf(tr(R.string.nav_focus),tr(R.string.nav_notices),tr(R.string.nav_settings)).forEachIndexed { index,name ->
             val button=Button(this).apply {
-                text=name; setTextColor(green); textSize=14f; UiStyle.text(this,500); isAllCaps=false; minimumHeight=dp(54); setPadding(dp(4),dp(10),dp(4),dp(10))
+                text=name; setTextColor(green); textSize=12f;
+                setCompoundDrawablesWithIntrinsicBounds(null,UiSymbols.drawable(this@MainActivity,listOf("focus","notifications","settings")[index],green,22),null,null); compoundDrawablePadding=dp(4); UiStyle.text(this,500); isAllCaps=false; minimumHeight=dp(54); setPadding(dp(4),dp(10),dp(4),dp(10))
                 stateListAnimator=null; elevation=0f
                 background=GradientDrawable().apply { cornerRadius=dp(12).toFloat() }
                 setOnClickListener { show(index) }
@@ -142,8 +151,9 @@ class MainActivity : Activity() {
         rememberScroll(); apiKeyField?.conceal(); apiKeyField=null; clearPickers(); uiGeneration++
         if(page==2) savedForm=captureForm?.invoke() ?: savedForm
         captureForm=null; localStatusView=null
-        page=which; clock=null; status=null; pending=null; startButton=null; pauseButton=null; restButton=null; analyzeButton=null; modeButton=null
-        val scroll=ScrollView(this); pageScroll=scroll
+        pageActions.removeAllViews(); pageActions.visibility=View.GONE
+        page=which; nextCheck=null; lastSummary=null; focusProgress=null; focusAlerts=null; clock=null; status=null; pending=null; startButton=null; pauseButton=null; restButton=null; analyzeButton=null; modeButton=null
+        val scroll=ScrollView(this).apply { isVerticalScrollBarEnabled=false }; pageScroll=scroll
         val generation=uiGeneration
         val restoreY=scrollPositions[which] ?: 0
         if(restoreY>0) scroll.addOnLayoutChangeListener(object: View.OnLayoutChangeListener {
@@ -167,39 +177,73 @@ class MainActivity : Activity() {
         }
         pageTransition.replace(scroll,resumed && previous!=which,direction)
     }
+    private fun row(parent: LinearLayout=content): LinearLayout = LinearLayout(this).also {
+        it.gravity=Gravity.CENTER_VERTICAL; parent.addView(it,LinearLayout.LayoutParams(-1,-2))
+    }
+    private fun quietAction(text: String,parent: LinearLayout=content,icon: String="chevron",action: ()->Unit): Button = button(text,parent,action=action).apply {
+        minimumHeight=dp(48); gravity=Gravity.CENTER_VERTICAL or Gravity.START
+        setCompoundDrawablesWithIntrinsicBounds(null,null,UiSymbols.drawable(this@MainActivity,icon,green,18),null)
+        background=android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(palette.ripple),android.graphics.drawable.ColorDrawable(Color.TRANSPARENT),null)
+    }
+    private fun divider(parent: LinearLayout=content,space: Int=8) {
+        parent.addView(View(this).apply { setBackgroundColor(palette.outline); alpha=0.65f; importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO },
+            LinearLayout.LayoutParams(-1,dp(1).coerceAtLeast(1)).apply { topMargin=dp(space); bottomMargin=dp(space) })
+    }
+    private fun subpage(title: String) {
+        val heading=row()
+        quietAction(tr(R.string.design_back),heading,"back") { show(2) }.apply { layoutParams=LinearLayout.LayoutParams(dp(84),dp(48)) }
+        label(title,22f,true,heading).layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+    }
     private fun home() {
-        val c=card()
-        val heading=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-        c.addView(heading,LinearLayout.LayoutParams(-1,-2))
-        label(tr(R.string.focus_title),17f,true,heading).layoutParams=LinearLayout.LayoutParams(0,-2,1f)
-        modeButton=button("",heading) { chooseFocusMode() }.apply {
-            id=R.id.focus_mode_menu
-            textSize=13f
-            layoutParams=LinearLayout.LayoutParams(-2,-2).apply { leftMargin=dp(8) }
+        val heading=row()
+        label(tr(R.string.focus_title),24f,true,heading).layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+        modeButton=quietAction("",heading,"down") { chooseFocusMode() }.apply {
+            id=R.id.focus_mode_menu; textSize=13f; layoutParams=LinearLayout.LayoutParams(-2,-2)
         }
-        clock=label("25:00",58f,true,c).apply { id=R.id.focus_clock; fontFeatureSettings="'tnum'"; gravity=Gravity.CENTER; setAutoSizeTextTypeUniformWithConfiguration(24,58,2,android.util.TypedValue.COMPLEX_UNIT_SP); contentDescription=tr(R.string.timer_adjust_description); setOnClickListener { editDuration() } }
-        button(tr(R.string.timer_adjust),c) { editDuration() }
-        status=label("",14f,parent=c)
-        startButton=button(tr(R.string.timer_start),c,primary=true) { TimerEngine.start(this); show(0) }
-        pauseButton=button(tr(R.string.timer_pause),c) { TimerEngine.pause(this); show(0) }
-        restButton=button(tr(R.string.timer_rest),c) { TimerEngine.rest(this); show(0); toast(tr(R.string.batch_started)) }
-        analyzeButton=button(tr(R.string.analyze_now),c) { BatchEngine.trigger(this); show(0); toast(tr(R.string.analysis_started)) }
-        val info=card(); pending=label("",14f,parent=info)
-        label(tr(R.string.collection_help),13f,parent=info)
-        button(tr(R.string.background_title),info) { show(4) }
-        button(tr(R.string.filters_title),info) { show(3) }
-        button(tr(R.string.sound_settings),info) { openSystem(Intent(AndroidSettings.ACTION_SOUND_SETTINGS)) }
-        label(tr(R.string.notifications_help),12f)
+        val dial=FrameLayout(this)
+        content.addView(dial,LinearLayout.LayoutParams(-1,dp(272)).apply { topMargin=dp(8); bottomMargin=dp(12) })
+        focusProgress=FocusProgressView(this).also { dial.addView(it,FrameLayout.LayoutParams(-1,-1)) }
+        val center=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(32),0,dp(32),0) }
+        dial.addView(center,FrameLayout.LayoutParams(-1,-1))
+        status=label("",13f,parent=center).apply { gravity=Gravity.CENTER; setTextColor(palette.secondary) }
+        clock=label("25:00",60f,true,center).apply {
+            id=R.id.focus_clock; fontFeatureSettings="'tnum'"; gravity=Gravity.CENTER
+            setAutoSizeTextTypeUniformWithConfiguration(24,60,2,android.util.TypedValue.COMPLEX_UNIT_SP)
+            contentDescription=tr(R.string.timer_adjust_description); setOnClickListener { editDuration() }
+        }
+        label(tr(R.string.design_tap_duration),12f,parent=center).apply { gravity=Gravity.CENTER; setTextColor(palette.secondary); minimumHeight=dp(48); setOnClickListener { editDuration() } }
+        val primary=row()
+        startButton=button(tr(R.string.timer_start),primary,primary=true) { TimerEngine.start(this); show(0) }
+        pauseButton=button(tr(R.string.timer_pause),primary,primary=true) { TimerEngine.pause(this); show(0) }
+        restButton=quietAction(tr(R.string.design_end),icon="") { TimerEngine.rest(this); show(0); toast(tr(R.string.batch_started)) }.apply {
+            gravity=Gravity.CENTER; setTextColor(palette.secondary); contentDescription=tr(R.string.timer_rest)
+            setCompoundDrawables(null,null,null,null)
+        }
+        val info=card()
+        val stats=row(info)
+        fun statistic(title: Int): TextView {
+            val column=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+            stats.addView(column,LinearLayout.LayoutParams(0,-2,1f))
+            label(tr(title),12f,parent=column).setTextColor(palette.secondary)
+            return label("",23f,true,column).apply { UiStyle.text(this,500,numbers=true) }
+        }
+        pending=statistic(R.string.design_round_notices)
+        nextCheck=statistic(R.string.design_next_check_label)
+        divider(info)
+        analyzeButton=quietAction(tr(R.string.design_analyze),info,"arrow") { BatchEngine.trigger(this); show(0); toast(tr(R.string.analysis_started)) }.apply { contentDescription=tr(R.string.analyze_now) }
+        val summary=row().apply { setPadding(0,dp(14),0,0) }
+        quietAction(tr(R.string.design_last_round),summary) { show(1) }.apply { layoutParams=LinearLayout.LayoutParams(-1,-2); setPadding(0,0,0,0); setTextColor(palette.secondary); textSize=13f }
+        lastSummary=label("",16f).apply { setPadding(0,0,0,dp(8)); setLineSpacing(dp(3).toFloat(),1f) }
+        focusAlerts=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }; content.addView(focusAlerts)
         update()
     }
     private fun chooseFocusMode() {
         val timer=Store(this).use { it.timer() }
         val minutes=if(timer.state=="IDLE") settings.minutes else (timer.interval/60_000).toInt()
-        alert().setTitle(tr(R.string.focus_mode_title))
-            .setItems(arrayOf(tr(R.string.focus_mode_single_option),tr(R.string.focus_mode_loop_option,minutes))) { _,which ->
-                TimerEngine.setMode(this,if(which==1) FocusMode.LOOP else FocusMode.SINGLE)
-                update()
-            }.show()
+        val selected=if(timer.state=="IDLE") settings.focusMode else timer.mode
+        FocusModePicker(this,selected,minutes) { mode -> TimerEngine.setMode(this,mode); update() }.also { dialog ->
+            dialogs.add(dialog); dialog.setOnDismissListener { dialogs.remove(dialog) }; dialog.show()
+        }
     }
     private fun editDuration() {
         val t=Store(this).use { it.timer() }
@@ -230,48 +274,71 @@ class MainActivity : Activity() {
             val mode=if(t.state=="IDLE") settings.focusMode else t.mode
             modeButton?.apply {
                 val name=tr(if(mode==FocusMode.LOOP) R.string.focus_mode_loop else R.string.focus_mode_single)
-                text=tr(R.string.focus_mode_menu_label,name)
+                text=name
                 contentDescription=tr(R.string.focus_mode_menu_description,name)
             }
-            analyzeButton?.isEnabled=t.state!="IDLE" && db.pendingCount()>0
+            analyzeButton?.apply { isEnabled=t.state!="IDLE" && db.pendingCount()>0; alpha=if(isEnabled) 1f else 0.45f }
             startButton?.apply { visibility=if(t.state=="RUNNING") View.GONE else View.VISIBLE; text=if(t.state=="PAUSED") tr(R.string.timer_resume) else tr(R.string.timer_start) }
             pauseButton?.visibility=if(t.state=="RUNNING") View.VISIBLE else View.GONE
             restButton?.visibility=if(t.state=="IDLE") View.GONE else View.VISIBLE
-            val sec=(millis+999)/1000; clock?.text="%02d:%02d".format(sec/60,sec%60)
+            val sec=(millis+999)/1000; clock?.apply { text="%02d:%02d".format(sec/60,sec%60); contentDescription=text.toString()+" · "+tr(R.string.timer_adjust_description) }
             status?.text=when(t.state) {
-                "RUNNING" -> tr(if(t.mode==FocusMode.LOOP) R.string.focus_loop_running else R.string.focus_running,t.interval/60_000)
-                "PAUSED" -> tr(R.string.focus_paused)
-                else -> tr(R.string.focus_idle,settings.minutes)
+                "RUNNING" -> tr(R.string.design_focusing)
+                "PAUSED" -> tr(R.string.design_paused)
+                else -> tr(R.string.design_ready)
             }
             val last=db.batches().firstOrNull()
-            pending?.text=listOf(
-                tr(R.string.listener_status,tr(if(InboxListener.connected) R.string.listener_connected else R.string.listener_disconnected)),
-                tr(R.string.pending_status,db.pendingCount(),tr(if(settings.enabled) R.string.enabled else R.string.disabled)),
-                tr(if(TimerEngine.exact(this)) R.string.exact_available else R.string.exact_delayed),
-                last?.let { tr(R.string.last_batch,it.id,stateName(it.state))+(if(it.error.isNotEmpty()) "\n"+LocaleHelper.renderError(this,it.error) else "") } ?: tr(R.string.no_batches)
-            ).joinToString("\n")
+            focusProgress?.progress=if(t.state=="IDLE") 1f else (millis.toFloat()/t.interval.coerceAtLeast(1)).coerceIn(0f,1f)
+            pending?.text=tr(R.string.design_notice_count,db.pendingCount())
+            nextCheck?.text=if(t.state=="RUNNING") android.text.format.DateFormat.getTimeFormat(this).format(Date(t.end)) else "—"
+            lastSummary?.text=last?.let { if(it.message.isNotBlank()) it.message else stateName(it.state) } ?: tr(R.string.no_batches)
+            focusAlerts?.let { alerts ->
+                val signature="${InboxListener.connected}:${TimerEngine.exact(this)}:${settings.enabled}:${last?.error.orEmpty()}"
+                if(alerts.tag==signature) return@let
+                alerts.tag=signature
+                alerts.removeAllViews()
+                if(!InboxListener.connected) quietAction(tr(R.string.design_listener_action),alerts) { openSystem(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+                if(!TimerEngine.exact(this) && Build.VERSION.SDK_INT>=31) quietAction(tr(R.string.design_alarm_action),alerts) { openSystem(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,Uri.parse("package:$packageName"))) }
+                if(!settings.enabled) quietAction(tr(R.string.design_ai_disabled),alerts) { show(2) }
+                if(last!=null && last.error.isNotEmpty()) quietAction(LocaleHelper.renderError(this,last.error),alerts) { show(1) }
+            }
         }
     }
     private fun stateName(s: String)=mapOf("QUEUED" to tr(R.string.state_queued),"ANALYZING" to tr(R.string.state_analyzing),"READY" to tr(R.string.state_ready),"SENDING" to tr(R.string.state_sending),"DONE" to tr(R.string.state_done),"EMPTY" to tr(R.string.state_empty),"SEND_FAILED" to tr(R.string.state_send_failed),"FAILED" to tr(R.string.state_failed),"UNCERTAIN" to tr(R.string.state_uncertain))[s] ?: s
     private fun kindName(kind: String)=mapOf("private" to tr(R.string.kind_private),"group" to tr(R.string.kind_group),"message" to tr(R.string.kind_message),"mail" to tr(R.string.kind_mail),"sms" to tr(R.string.kind_sms),"call" to tr(R.string.kind_call),"missed_call" to tr(R.string.kind_missed_call))[kind] ?: tr(R.string.kind_unknown)
     private fun time(t: Long)=SimpleDateFormat(tr(R.string.date_pattern),Locale.forLanguageTag(settings.language.tag)).format(Date(t))
+    private fun briefTime(at: Long): String = SimpleDateFormat("MM-dd HH:mm",Locale.forLanguageTag(settings.language.tag)).format(Date(at))
     private fun history() {
-        label(tr(R.string.history_title),23f,true)
-        button(tr(R.string.filters_manage)) { show(3) }
-        button(tr(R.string.refresh)) { show(1) }
+        label(tr(R.string.nav_notices),24f,true)
+        val tools=row()
+        quietAction(tr(R.string.design_filters),tools) { show(3) }.layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+        quietAction(tr(R.string.refresh),tools,"refresh") { show(1) }.layoutParams=LinearLayout.LayoutParams(-2,-2)
+        val tabs=row()
+        listOf(R.string.design_summaries,R.string.design_notifications).forEachIndexed { index,title ->
+            button(tr(title),tabs) { historyTab=index; show(1) }.apply {
+                isSelected=historyTab==index
+                background=GradientDrawable().apply { setColor(if(isSelected) palette.selected else Color.TRANSPARENT); cornerRadius=dp(12).toFloat() }
+                setTextColor(if(isSelected) green else palette.secondary)
+                layoutParams=LinearLayout.LayoutParams(0,dp(48),1f).apply { marginEnd=dp(4) }
+            }
+        }
         Store(this).use { db ->
             val batches=db.batches()
-            label(tr(R.string.recent_batches),17f,true)
+            if(historyTab==0) {
             if(batches.isEmpty()) label(tr(R.string.history_empty),13f)
             batches.forEach { b ->
-                val c=card(); label("#${b.id} · ${stateName(b.state)}",16f,true,c); label(time(b.created),12f,parent=c); label(tr(R.string.batch_destination,targetName(b.target)),12f,parent=c)
+                val c=card()
+                label("${briefTime(b.created)} · ${stateName(b.state)}",12f,parent=c).setTextColor(palette.secondary)
+                if(b.message.isNotBlank()) label(b.message,17f,parent=c).setTextIsSelectable(true)
+                label(targetName(b.target),12f,parent=c).setTextColor(palette.secondary)
                 if(b.instantKey.isNotEmpty()) label(tr(R.string.codes_record),12f,parent=c)
-                if(b.roundId>0) label(tr(R.string.batch_focus_window,time(b.roundStart),if(b.roundEnd>0) time(b.roundEnd) else tr(R.string.focus_window_open)),12f,parent=c)
-                if(b.message.isNotBlank()) label(b.message,14f,parent=c)
                 if(b.error.isNotBlank()) label(LocaleHelper.renderError(this,b.error),14f,parent=c)
                 val unprocessed=b.state in setOf("QUEUED","FAILED")
                 val records=if(unprocessed) db.visibleNotices(b.id) else db.notices(b.id)
-                button(tr(R.string.batch_records,records.size),c) { showNotices(Store(this).use { if(unprocessed) it.visibleNotices(b.id) else it.notices(b.id) },!unprocessed) }
+                divider(c,2)
+                quietAction(tr(R.string.design_details,records.size),c) { showNotices(Store(this).use { if(unprocessed) it.visibleNotices(b.id) else it.notices(b.id) },!unprocessed,b) }.apply {
+                    textSize=13f; setTextColor(palette.secondary); setPadding(0,0,0,0); UiStyle.text(this)
+                }
                 if(b.state in setOf("FAILED","SEND_FAILED","UNCERTAIN") && (b.instantKey.isEmpty() || (settings.codesActive && VerificationCodes.fresh(b.created,System.currentTimeMillis())))) button(tr(R.string.retry_manual),c) {
                     val requested=settings.destination
                     val changing=requested!=b.target
@@ -281,26 +348,37 @@ class MainActivity : Activity() {
                         .setNegativeButton(tr(R.string.cancel),null).setPositiveButton(tr(R.string.retry_confirm)) { _,_ -> BatchEngine.retry(this,b.id,if(changing) requested else null); show(1) }.show()
                 }
             }
-            label(tr(R.string.recent_notices),17f,true)
-            db.recent().forEach { n -> noticeCard(content,n,false) }
+            } else {
+                val notices=db.recent()
+                if(notices.isEmpty()) label(tr(R.string.design_no_notifications),14f)
+                notices.forEach { n -> noticeCard(content,n,false) }
+            }
         }
     }
     private fun noticeCard(parent: LinearLayout,n: Notice,audit: Boolean) {
         val c=LinearLayout(this).apply {
-            orientation=LinearLayout.VERTICAL; setPadding(dp(16),dp(12),dp(16),dp(12))
+            orientation=LinearLayout.VERTICAL; setPadding(dp(16),dp(12),dp(16),dp(16))
             background=GradientDrawable().apply { setColor(palette.surface); cornerRadius=dp(16).toFloat() }
         }
         parent.addView(c,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(12) })
-        label("${n.app} · ${n.title}",15f,true,c)
-        label("${time(n.at)} · ${kindName(n.kind)}${if(n.summary) tr(R.string.summary_suffix) else ""}",12f,parent=c)
-        label(n.body.ifBlank { tr(R.string.body_hidden) },14f,parent=c).setTextIsSelectable(true)
+        val header=row(c)
+        val source=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        header.addView(source,LinearLayout.LayoutParams(0,-2,1f))
+        label("${n.app} · ${n.title}",14f,true,source)
+        label(briefTime(n.at),12f,parent=source).apply { setTextColor(palette.secondary); setPadding(0,0,0,0) }
+        quietAction("",header,"more") { filterNotice(n) }.apply {
+            layoutParams=LinearLayout.LayoutParams(dp(48),dp(48)); setPadding(dp(14),dp(12),dp(14),dp(12))
+            contentDescription=tr(R.string.filter_notice); tooltipText=contentDescription
+        }
+        divider(c,6)
+        label(n.body.ifBlank { tr(R.string.body_hidden) },16f,parent=c).apply { setTextIsSelectable(true); setLineSpacing(dp(2).toFloat(),1f) }
         if(audit && Store(this).use { it.isFiltered(n) }) label(tr(R.string.audit_filtered),12f,parent=c)
-        button(tr(R.string.filter_notice),c) { filterNotice(n) }
     }
     private fun showNotices(notices: List<Notice>,audit: Boolean=false,batch: Batch?=null) {
         val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(16),dp(8),dp(16),dp(16)) }
         if(batch!=null) {
             label(tr(R.string.batch_detail_title,batch.id),18f,true,list)
+            if(batch.roundId>0) label(tr(R.string.batch_focus_window,time(batch.roundStart),if(batch.roundEnd>0) time(batch.roundEnd) else tr(R.string.focus_window_open)),12f,parent=list)
             label(tr(R.string.batch_destination,targetName(batch.target))+" · "+stateName(batch.state),13f,parent=list)
             if(batch.message.isNotBlank()) label(batch.message,15f,parent=list)
             if(batch.error.isNotBlank()) label(LocaleHelper.renderError(this,batch.error),13f,parent=list)
@@ -328,7 +406,7 @@ class MainActivity : Activity() {
     }
     private fun field(title: String,value: String,secret: Boolean=false,multiline: Boolean=false,parent: LinearLayout=content): EditText {
         label(title,14f,true,parent)
-        return EditText(this).also { it.setText(value); it.textSize=14f; it.inputType=if(secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD else if(multiline) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE else InputType.TYPE_CLASS_TEXT; it.setSingleLine(!multiline); if(secret) it.maskSecret(); UiStyle.field(it); parent.addView(it,LinearLayout.LayoutParams(-1,-2)) }
+        return EditText(this).also { it.contentDescription=title; it.setText(value); it.textSize=14f; it.inputType=if(secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD else if(multiline) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE else InputType.TYPE_CLASS_TEXT; it.setSingleLine(!multiline); if(secret) it.maskSecret(); UiStyle.field(it); parent.addView(it,LinearLayout.LayoutParams(-1,-2)) }
     }
     private fun preferences() {
         val generation=uiGeneration
@@ -342,10 +420,12 @@ class MainActivity : Activity() {
         val appearancePicker=MintSpinner(this,listOf(tr(R.string.appearance_system),tr(R.string.appearance_light),tr(R.string.appearance_dark)),appearances.indexOf(settings.appearance),tr(R.string.appearance_title)).apply { id=R.id.appearance_picker }
         settingsPickers.add(appearancePicker)
         content.addView(appearancePicker,LinearLayout.LayoutParams(-1,-2))
-        label(tr(R.string.appearance_help),12f)
+        val generalViews=(0 until content.childCount).map { content.getChildAt(it) }
+        generalViews.forEach { content.removeView(it) }
         val retainedForm=savedForm
-        label(tr(R.string.nav_settings),23f,true)
-        label(tr(R.string.settings_intro),14f)
+        label(tr(R.string.nav_settings),24f,true)
+        val aiStart=content.childCount
+        label(tr(R.string.design_ai_group),17f,true)
         var selected=retainedForm?.selected ?: settings.provider
         var selectedTarget=retainedForm?.destination ?: settings.destination
         var remoteLoaded=retainedForm?.remoteLoaded ?: (selectedTarget==DeliveryTarget.FEISHU)
@@ -356,20 +436,23 @@ class MainActivity : Activity() {
             keyError=true; AiConfig(p,"",settings.providerEndpoint(p),settings.providerModel(p),settings.prompt)
         }
         val initial=drafts.getOrPut(selected) { load(selected) }
-        label(tr(R.string.provider_label),14f,true)
+        label(tr(R.string.provider_label),13f)
         val providers=Provider.entries.toList()
         val picker=MintSpinner(this,providers.map { it.title },providers.indexOf(selected),tr(R.string.provider_label))
         settingsPickers.add(picker); content.addView(picker,LinearLayout.LayoutParams(-1,-2))
-        val providerHint=label(tr(R.string.provider_active_hint,settings.provider.title),12f)
-        val apiLabel=label(tr(R.string.api_key_label,selected.title),14f,true)
+        val providerHint=label(tr(R.string.provider_form_hint,selected.title,settings.provider.title),12f).apply { visibility=if(selected==settings.provider) View.GONE else View.VISIBLE }
+        val apiLabel=label(tr(R.string.api_key_label,selected.title),13f)
         val keyField=ApiKeyField(this,initial.key); apiKeyField=keyField
         val api=keyField.editText
         content.addView(keyField,LinearLayout.LayoutParams(-1,-2))
-        label(tr(R.string.delivery_label),14f,true)
+        val aiEnd=content.childCount
+        val deliveryStart=content.childCount
+        label(tr(R.string.design_reminders_group),17f,true)
+        label(tr(R.string.delivery_label),13f)
         val targets=DeliveryTarget.entries.toList()
         val targetPicker=MintSpinner(this,targets.map { targetName(it) },targets.indexOf(selectedTarget),tr(R.string.delivery_label))
         settingsPickers.add(targetPicker); content.addView(targetPicker,LinearLayout.LayoutParams(-1,-2))
-        val targetHint=label(tr(R.string.delivery_saved_hint,targetName(settings.destination)),12f)
+        val targetHint=label(tr(R.string.delivery_form_hint,targetName(selectedTarget),targetName(settings.destination)),12f).apply { visibility=if(selectedTarget==settings.destination) View.GONE else View.VISIBLE }
         val enabled=Switch(this).apply { UiStyle.toggle(this); text=tr(R.string.cloud_enable); isChecked=retainedForm?.enabled ?: settings.enabled; tag=retainedForm?.consent==true }; content.addView(enabled)
         enabled.setOnCheckedChangeListener { _,on ->
             if(on && !settings.enabled) alert().setTitle(tr(R.string.cloud_consent_title))
@@ -380,16 +463,19 @@ class MainActivity : Activity() {
         val remoteArea=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; visibility=if(selectedTarget==DeliveryTarget.FEISHU) View.VISIBLE else View.GONE }
         content.addView(remoteArea)
         val codes=Switch(this).apply { UiStyle.toggle(this); text=tr(R.string.codes_enable); isChecked=retainedForm?.forwardCodes ?: settings.forwardCodes }; remoteArea.addView(codes)
-        label(tr(R.string.codes_help),12f,parent=remoteArea)
+        
         val hook=field(tr(R.string.webhook_label),if(remoteLoaded) retainedForm?.webhook ?: secret { settings.webhook } else "",true,parent=remoteArea)
-        label(tr(R.string.webhook_help),12f,parent=remoteArea)
+        
         val localArea=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; visibility=if(selectedTarget==DeliveryTarget.LOCAL) View.VISIBLE else View.GONE }
         content.addView(localArea)
-        localStatusView=label("",13f,parent=localArea)
-        button(tr(R.string.local_settings_title),localArea) { show(5) }
+        localStatusView=label("",14f,true,parent=localArea)
+        divider(localArea,0)
+        quietAction(tr(R.string.local_settings_title),localArea) { show(5) }
         refreshLocalStatus()
-        val keyNotice=label(if(keyError) tr(R.string.key_unreadable) else tr(R.string.provider_storage_help),12f)
-        button(tr(R.string.save_settings),primary=true) {
+        val deliveryEnd=content.childCount
+        val keyNotice=label(if(keyError) tr(R.string.key_unreadable) else "",12f).apply { visibility=if(keyError) View.VISIBLE else View.GONE }
+        pageActions.visibility=View.VISIBLE
+        button(tr(R.string.save_settings),pageActions,primary=true) {
             when {
                 enabled.isChecked && api.text.isBlank() -> toast(tr(R.string.configure_ai_required))
                 (enabled.isChecked || codes.isChecked) && selectedTarget==DeliveryTarget.FEISHU && !Network.validUrl(hook.text.toString().trim(),true) -> toast(tr(R.string.configure_required))
@@ -397,14 +483,14 @@ class MainActivity : Activity() {
                 else -> try {
                     settings.saveBasic(selected,api.text.toString().trim(),hook.text.toString().trim(),enabled.isChecked,selectedTarget,codes.isChecked)
                     FocusWidgets.refresh(this)
-                    providerHint.text=tr(R.string.provider_active_hint,settings.provider.title)
-                    targetHint.text=tr(R.string.delivery_saved_hint,targetName(settings.destination))
+                    providerHint.visibility=View.GONE
+                    targetHint.visibility=View.GONE
                     toast(tr(R.string.basic_saved,selected.title))
                 } catch(_: Exception) { settings.enabled=false; toast(tr(R.string.key_save_failed)) }
             }
         }
         val advanced=LinearLayout(this).apply { id=R.id.advanced_fields; orientation=LinearLayout.VERTICAL; visibility=if(retainedForm?.expanded==true) View.VISIBLE else View.GONE }
-        val toggle=button(if(advanced.visibility==View.VISIBLE) tr(R.string.advanced_collapse) else tr(R.string.advanced_expand)) {}.apply { id=R.id.advanced_toggle }
+        val toggle=quietAction(if(advanced.visibility==View.VISIBLE) tr(R.string.advanced_collapse) else tr(R.string.advanced_expand),icon="down") {}.apply { id=R.id.advanced_toggle }
         toggle.setOnClickListener {
             UiMotion.changeLayout(content) {
                 advanced.visibility=if(advanced.visibility==View.GONE) View.VISIBLE else View.GONE
@@ -442,7 +528,8 @@ class MainActivity : Activity() {
                 val draft=drafts.getOrPut(next) { load(next) }
                 keyField.conceal(); apiLabel.text=tr(R.string.api_key_label,next.title); api.setText(draft.key); endpoint.setText(draft.endpoint); model.setText(draft.model)
                 providerHint.text=tr(R.string.provider_form_hint,next.title,settings.provider.title)
-                if(keyError) keyNotice.text=tr(R.string.provider_key_unreadable)
+                providerHint.visibility=if(next==settings.provider) View.GONE else View.VISIBLE
+                if(keyError) { keyNotice.text=tr(R.string.provider_key_unreadable); keyNotice.visibility=View.VISIBLE }
             }
         }
         targetPicker.onItemSelectedListener=object: AdapterView.OnItemSelectedListener {
@@ -452,12 +539,13 @@ class MainActivity : Activity() {
                 selectedTarget=targets[position]
                 if(selectedTarget==DeliveryTarget.FEISHU && !remoteLoaded) {
                     hook.setText(secret { settings.webhook }); sign.setText(secret { settings.signingKey }); remoteLoaded=true
-                    if(keyError) keyNotice.text=tr(R.string.key_unreadable)
+                    if(keyError) { keyNotice.text=tr(R.string.key_unreadable); keyNotice.visibility=View.VISIBLE }
                 }
                 remoteArea.visibility=if(selectedTarget==DeliveryTarget.FEISHU) View.VISIBLE else View.GONE
                 signingArea.visibility=remoteArea.visibility
                 localArea.visibility=if(selectedTarget==DeliveryTarget.LOCAL) View.VISIBLE else View.GONE
                 targetHint.text=tr(R.string.delivery_form_hint,targetName(selectedTarget),targetName(settings.destination))
+                targetHint.visibility=if(selectedTarget==settings.destination) View.GONE else View.VISIBLE
                 refreshLocalStatus()
             }
         }
@@ -485,9 +573,31 @@ class MainActivity : Activity() {
                 refreshLanguage(languages[position])
             }
         }
+        // Group existing controls without replacing their listeners, drafts or save semantics.
+        val aiViews=(aiStart until aiEnd).map { content.getChildAt(it) }
+        val deliveryViews=(deliveryStart until deliveryEnd).map { content.getChildAt(it) }
+        fun group(views: List<View>,index: Int): LinearLayout {
+            val section=LinearLayout(this).apply {
+                orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(14),dp(18),dp(14))
+                background=GradientDrawable().apply { setColor(palette.surface); cornerRadius=dp(20).toFloat() }
+            }
+            views.forEach { content.removeView(it); section.addView(it) }
+            content.addView(section,index,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(14); bottomMargin=dp(6) })
+            return section
+        }
+        val aiGroup=group(aiViews,aiStart)
+        val deliveryIndex=content.indexOfChild(deliveryViews.first())
+        val deliveryGroup=group(deliveryViews,deliveryIndex)
+        deliveryGroup.removeView(enabled); aiGroup.addView(enabled)
+        enabled.minimumHeight=dp(48); enabled.textSize=14f
+        content.removeView(toggle); content.removeView(advanced)
+        divider(aiGroup); aiGroup.addView(toggle); aiGroup.addView(advanced)
+        val general=card(); label(tr(R.string.design_general_group),17f,true,general)
+        generalViews.forEachIndexed { i,view -> if(i==2) divider(general); general.addView(view) }
         val management=card(); label(tr(R.string.management_title),17f,true,management)
-        button(tr(R.string.background_title),management) { show(4) }
-        button(tr(R.string.filters_title),management) { show(3) }
+        quietAction(tr(R.string.background_title),management) { show(4) }
+        divider(management,0)
+        quietAction(tr(R.string.filters_title),management) { show(3) }
         label(tr(R.string.retention_help),12f)
         button(tr(R.string.delete_records)) {
             alert().setTitle(tr(R.string.delete_records_title)).setMessage(tr(R.string.delete_records_help))
@@ -498,10 +608,9 @@ class MainActivity : Activity() {
         recentTaskPreference()
     }
     private fun filtersPage() {
-        label(tr(R.string.filters_title),23f,true)
+        subpage(tr(R.string.filters_title))
         label(tr(R.string.filters_intro),13f)
         label(tr(R.string.filters_help),12f)
-        button(tr(R.string.back_settings)) { show(2) }
         button(tr(R.string.exclude_choose_app)) {
             val apps=Store(this).use { it.apps() }
             if(apps.isEmpty()) toast(tr(R.string.no_apps))
@@ -520,7 +629,7 @@ class MainActivity : Activity() {
         }
     }
     private fun backgroundPage() {
-        label(tr(R.string.background_title),23f,true)
+        subpage(tr(R.string.background_title))
         label(tr(R.string.background_intro),13f)
         val state=BackgroundGuide.read(this)
         val autostart=card(); label(tr(R.string.autostart_title),17f,true,autostart)
@@ -560,7 +669,6 @@ class MainActivity : Activity() {
         button(tr(R.string.notification_access_settings),permissions) { openSystem(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
         if(Build.VERSION.SDK_INT>=31) button(tr(R.string.alarm_settings),permissions) { openSystem(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,Uri.parse("package:$packageName"))) }
         button(tr(R.string.refresh_status),permissions) { show(4) }
-        button(tr(R.string.back_settings)) { show(2) }
     }
     private fun recentTaskPreference() {
         val am=getSystemService(ActivityManager::class.java)
@@ -576,15 +684,26 @@ class MainActivity : Activity() {
     }
     private fun targetName(target: DeliveryTarget) = tr(if(target==DeliveryTarget.LOCAL) R.string.delivery_local else R.string.delivery_feishu)
     private fun refreshLocalStatus() {
-        localStatusView?.text=tr(when(LocalNotifier.status(this)) {
-            LocalNoticeStatus.READY -> R.string.local_status_ready
-            LocalNoticeStatus.PERMISSION_MISSING -> R.string.local_status_permission
-            LocalNoticeStatus.APP_BLOCKED -> R.string.local_status_app
-            LocalNoticeStatus.CHANNEL_BLOCKED -> R.string.local_status_channel
-        })
+        val state=LocalNotifier.status(this)
+        localStatusView?.apply {
+            text=tr(when(state) {
+                LocalNoticeStatus.READY -> R.string.local_status_ready
+                LocalNoticeStatus.PERMISSION_MISSING -> if(page==2) R.string.design_local_permission else R.string.local_status_permission
+                LocalNoticeStatus.APP_BLOCKED -> if(page==2) R.string.design_local_app else R.string.local_status_app
+                LocalNoticeStatus.CHANNEL_BLOCKED -> if(page==2) R.string.design_local_channel else R.string.local_status_channel
+            })
+            setTextColor(if(state==LocalNoticeStatus.READY) palette.secondary else ink)
+            UiStyle.text(this,if(state==LocalNoticeStatus.READY) 400 else 500)
+            if(page==2 && state!=LocalNoticeStatus.READY) {
+                minimumHeight=dp(48); gravity=Gravity.CENTER_VERTICAL
+                setCompoundDrawables(null,null,UiSymbols.drawable(this@MainActivity,"arrow",green,20),null)
+                setOnClickListener { show(5) }
+                contentDescription=text.toString()+" · "+tr(R.string.design_open_permission)
+            } else { setCompoundDrawables(null,null,null,null); setOnClickListener(null); isClickable=false; minimumHeight=0; contentDescription=null }
+        }
     }
     private fun localNotificationPage() {
-        label(tr(R.string.local_settings_title),23f,true)
+        subpage(tr(R.string.local_settings_title))
         localStatusView=label("",14f)
         refreshLocalStatus()
         if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
@@ -601,7 +720,6 @@ class MainActivity : Activity() {
         button(tr(R.string.local_dnd_settings),dnd) {
             if(!LocalNotifier.openDndSettings { startActivity(it) }) toast(tr(R.string.local_dnd_missing))
         }
-        button(tr(R.string.back_settings)) { show(2) }
     }
     override fun onRequestPermissionsResult(requestCode: Int,permissions: Array<out String>,grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode,permissions,grantResults)

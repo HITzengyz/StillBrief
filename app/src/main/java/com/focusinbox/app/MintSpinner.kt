@@ -56,9 +56,9 @@ class MintSpinner(baseContext: Context,labels: List<String>,selected: Int,descri
             override fun getItemId(position: Int)=position.toLong()
             override fun getView(position: Int,convertView: View?,parent: ViewGroup): View {
                 val row=(convertView as? LinearLayout) ?: LinearLayout(this@MintSpinner.context).apply {
-                    gravity=Gravity.CENTER_VERTICAL; setPadding(dp(14),dp(10),dp(14),dp(10))
+                    gravity=Gravity.CENTER_VERTICAL; setPadding(dp(14),dp(2),dp(14),dp(2))
                     addView(text(),LinearLayout.LayoutParams(0,-2,1f))
-                    addView(TextView(this@MintSpinner.context).apply { text="⌄"; textSize=20f; setTextColor(ink); importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO },LinearLayout.LayoutParams(dp(24),-2))
+                    addView(android.widget.ImageView(this@MintSpinner.context).apply { setImageDrawable(UiSymbols.drawable(context,"down",palette.secondary,18)); importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO },LinearLayout.LayoutParams(dp(20),dp(20)))
                 }
                 (row.getChildAt(0) as TextView).text=labels[position]
                 return row
@@ -66,7 +66,7 @@ class MintSpinner(baseContext: Context,labels: List<String>,selected: Int,descri
             override fun getDropDownView(position: Int,convertView: View?,parent: ViewGroup): View {
                 if(parent is ListView) {
                     parent.background=rounded(palette.surface); parent.clipToOutline=true
-                    parent.selector=rowBackground(); parent.divider=null; parent.setPadding(0,0,0,0)
+                    parent.selector=rowBackground(); parent.divider=android.graphics.drawable.ColorDrawable(palette.outline); parent.dividerHeight=dp(1).coerceAtLeast(1); parent.setPadding(0,0,0,0)
                 }
                 return ((convertView as? TextView) ?: text().apply { setPadding(dp(16),dp(12),dp(16),dp(12)) }).apply {
                     text=labels[position]; background=rowBackground(); isActivated=position==selectedItemPosition

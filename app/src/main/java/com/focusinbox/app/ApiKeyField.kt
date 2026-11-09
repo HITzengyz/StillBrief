@@ -73,7 +73,7 @@ class ApiKeyField(baseContext: Context,initial: String): LinearLayout(Appearance
         updateEnabled()
     }
     private fun action(viewId: Int,icon: Int,description: Int,click: ()->Unit): ImageButton = ImageButton(context).also {
-        it.id=viewId; it.setImageResource(icon); it.imageTintList=ColorStateList.valueOf(green)
+        it.id=viewId; it.setImageResource(icon); it.imageTintList=ColorStateList.valueOf(if(viewId==R.id.api_key_clear) palette.secondary else green)
         it.contentDescription=context.getString(description); it.tooltipText=it.contentDescription
         it.setPadding(dp(12),dp(12),dp(12),dp(12))
         it.background=RippleDrawable(ColorStateList.valueOf(palette.ripple),GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius=dp(12).toFloat() },null)

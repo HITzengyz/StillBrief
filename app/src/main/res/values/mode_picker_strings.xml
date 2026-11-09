@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mode_picker_single_help">到点结束专注，整理本轮通知。</string>
+    <string name="mode_picker_loop_help">每轮 %1$d 分钟，到点整理通知并自动开始下一轮。</string>
+</resources>

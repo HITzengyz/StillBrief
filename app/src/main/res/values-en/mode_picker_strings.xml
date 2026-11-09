@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mode_picker_single_help">Finish at the end and summarize this round.</string>
+    <string name="mode_picker_loop_help">Summarize every %1$d minutes and start the next round automatically.</string>
+</resources>

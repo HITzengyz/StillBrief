@@ -45,7 +45,7 @@ class DurationPicker(baseContext: Context,initialMinutes: Int,private val headin
         super.onCreate(savedInstanceState)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         val metrics=context.resources.displayMetrics
-        val bodyLimit=(metrics.heightPixels*0.88f-dp(114)-dp((30*(context.resources.configuration.fontScale-1).coerceAtLeast(0f)).toInt())).toInt().coerceAtLeast(dp(140))
+        val bodyLimit=(metrics.heightPixels*0.88f-dp(80)-dp((30*(context.resources.configuration.fontScale-1).coerceAtLeast(0f)).toInt())).toInt().coerceAtLeast(dp(140))
         val root=LinearLayout(context).apply {
             orientation=LinearLayout.VERTICAL; setPadding(dp(20),dp(14),dp(20),dp(12))
             background=GradientDrawable().apply {
@@ -58,12 +58,19 @@ class DurationPicker(baseContext: Context,initialMinutes: Int,private val headin
             }
         }.apply { isVerticalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_IF_CONTENT_SCROLLS }
         val body=LinearLayout(context).apply { orientation=LinearLayout.VERTICAL }
-        body.addView(View(context).apply { background=shape(palette.outline,2); importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO },LinearLayout.LayoutParams(dp(34),dp(4)).apply { gravity=Gravity.CENTER_HORIZONTAL; bottomMargin=dp(16) })
-        body.addView(label(heading,19f).apply { UiStyle.text(this,600) },LinearLayout.LayoutParams(-1,-2))
+        val header=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL }
+        header.addView(label(heading,21f).apply { gravity=Gravity.START; UiStyle.text(this,600) },LinearLayout.LayoutParams(0,-2,1f))
+        header.addView(action("").apply {
+            id=R.id.duration_cancel; minimumHeight=dp(48); minHeight=dp(48)
+            setPadding(dp(12),dp(12),dp(12),dp(12)); background=shape(Color.TRANSPARENT,24)
+            contentDescription=context.getString(R.string.cancel)
+            setCompoundDrawables(UiSymbols.drawable(context,"close",palette.secondary),null,null,null)
+            setOnClickListener { cancel() }
+        },LinearLayout.LayoutParams(dp(48),dp(48)))
+        body.addView(header,LinearLayout.LayoutParams(-1,-2))
         dial.id=R.id.duration_dial
         body.addView(dial,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(4) })
         body.addView(label(context.getString(R.string.duration_drag_hint),12f,palette.secondary),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(16) })
-        body.addView(label(context.getString(R.string.duration_presets_label),12f,palette.secondary),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(8) })
         val choices=LinearLayout(context).apply { id=R.id.duration_presets; orientation=LinearLayout.VERTICAL }
         val available=min(metrics.widthPixels,dp(520))-dp(40)
         val single=available>=dp(310) && context.resources.configuration.fontScale<=1.3f
@@ -73,8 +80,8 @@ class DurationPicker(baseContext: Context,initialMinutes: Int,private val headin
             if(!single && group.size==2) row.addView(View(context),LinearLayout.LayoutParams(0,1,0.5f))
             group.forEach { minutes ->
                 val chip=action(minutes.toString()).apply {
-                    tag=minutes; textSize=14f; minimumHeight=dp(44); setPadding(dp(8),dp(8),dp(8),dp(8))
-                    background=shape(palette.control,30)
+                    tag=minutes; textSize=14f; minimumHeight=dp(48); setPadding(dp(8),dp(8),dp(8),dp(8))
+                    background=shape(palette.control,12)
                     contentDescription=context.getString(R.string.minutes_value,minutes)
                     setOnClickListener { dial.setMinutes(minutes) }
                 }
@@ -86,10 +93,9 @@ class DurationPicker(baseContext: Context,initialMinutes: Int,private val headin
         }
         body.addView(choices); scroll.addView(body); root.addView(scroll,LinearLayout.LayoutParams(-1,-2))
         val footer=LinearLayout(context).apply { setPadding(0,dp(12),0,0) }
-        footer.addView(action(context.getString(R.string.cancel)).apply { id=R.id.duration_cancel; setOnClickListener { cancel() } },LinearLayout.LayoutParams(0,-2,1f).apply { rightMargin=dp(6) })
         footer.addView(action(context.getString(R.string.confirm),true).apply {
             id=R.id.duration_confirm; setOnClickListener { val value=dial.minutes; dismiss(); confirmed(value) }
-        },LinearLayout.LayoutParams(0,-2,1f).apply { leftMargin=dp(6) })
+        },LinearLayout.LayoutParams(-1,-2))
         root.addView(footer,LinearLayout.LayoutParams(-1,-2))
         root.setOnApplyWindowInsetsListener { view,insets ->
             if(Build.VERSION.SDK_INT>=30) {

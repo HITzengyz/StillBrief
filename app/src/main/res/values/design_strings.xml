@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="design_back">返回</string>
+    <string name="design_tap_duration">轻点时间调整时长</string>
+    <string name="design_next_check">下次检查  %1$s</string>
+    <string name="design_listener_action">通知监听未连接 · 前往开启</string>
+    <string name="design_alarm_action">准时提醒未开启 · 前往设置</string>
+    <string name="design_ai_disabled">AI 摘要未开启 · 前往配置</string>
+    <string name="design_summaries">摘要</string>
+    <string name="design_notifications">通知</string>
+    <string name="design_no_notifications">还没有收到通知</string>
+    <string name="design_ai_group">AI 摘要</string>
+    <string name="design_reminders_group">提醒与送达</string>
+    <string name="design_general_group">通用</string>
+    <string name="design_focusing">专注中</string>
+    <string name="design_paused">已暂停</string>
+    <string name="design_ready">准备好，开始专注</string>
+    <string name="design_end">结束并分析</string>
+    <string name="design_analyze">立即分析</string>
+    <string name="design_round_notices">本轮待处理</string>
+    <string name="design_next_check_label">下次检查</string>
+    <string name="design_notice_count">%1$d 条</string>
+    <string name="design_last_round">上一轮摘要</string>
+    <string name="design_filters">通知过滤</string>
+    <string name="design_details">查看原始通知 · %1$d 条</string>
+    <string name="design_filter_notice">不再收集</string>
+    <string name="design_local_permission">通知权限未开启</string>
+    <string name="design_local_app">应用通知已关闭</string>
+    <string name="design_local_channel">摘要通知已关闭</string>
+    <string name="design_open_permission">去开启</string>
+</resources>

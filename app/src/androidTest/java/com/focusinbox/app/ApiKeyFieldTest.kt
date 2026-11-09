@@ -47,7 +47,9 @@ class ApiKeyFieldTest {
     }
     private fun content(): ViewGroup { val host=activity.findViewById<FrameLayout>(R.id.page_host); return host.getChildAt(host.childCount-1) as ViewGroup }
     private fun key()=views(content()).filterIsInstance<ApiKeyField>().single()
-    private fun pickers()=views(content()).filterIsInstance<Spinner>().filter { it.id!=R.id.appearance_picker }.toList()
+    private fun pickers()=listOf(R.string.language_title,R.string.provider_label,R.string.delivery_label).map { label ->
+        views(content()).filterIsInstance<Spinner>().first { it.contentDescription==activity.getString(label) }
+    }
     private fun action(id: Int)=key().findViewById<ImageButton>(id)
     private fun navigate(index: Int) {
         onMain { (activity.findViewById<ViewGroup>(R.id.page_navigation).getChildAt(index) as Button).performClick() }

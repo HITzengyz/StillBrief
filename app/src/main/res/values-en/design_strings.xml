@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="design_back">Back</string>
+    <string name="design_tap_duration">Tap the time to adjust</string>
+    <string name="design_next_check">Next check  %1$s</string>
+    <string name="design_listener_action">Notification access disconnected · Set up</string>
+    <string name="design_alarm_action">Precise reminders unavailable · Set up</string>
+    <string name="design_ai_disabled">AI summaries are off · Configure</string>
+    <string name="design_summaries">Summaries</string>
+    <string name="design_notifications">Notifications</string>
+    <string name="design_no_notifications">No notifications yet</string>
+    <string name="design_ai_group">AI summaries</string>
+    <string name="design_reminders_group">Reminders &amp; delivery</string>
+    <string name="design_general_group">General</string>
+    <string name="design_focusing">Focusing</string>
+    <string name="design_paused">Paused</string>
+    <string name="design_ready">Ready when you are</string>
+    <string name="design_end">End and analyze</string>
+    <string name="design_analyze">Analyze now</string>
+    <string name="design_round_notices">Pending this round</string>
+    <string name="design_next_check_label">Next check</string>
+    <string name="design_notice_count">%1$d</string>
+    <string name="design_last_round">Last summary</string>
+    <string name="design_filters">Filters</string>
+    <string name="design_details">Original notifications · %1$d</string>
+    <string name="design_filter_notice">Stop collecting</string>
+    <string name="design_local_permission">Notification permission needed</string>
+    <string name="design_local_app">App notifications are off</string>
+    <string name="design_local_channel">Summary notifications are off</string>
+    <string name="design_open_permission">Enable notifications</string>
+</resources>

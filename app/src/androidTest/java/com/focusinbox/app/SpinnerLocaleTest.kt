@@ -61,8 +61,13 @@ class SpinnerLocaleTest {
         yield(view); if(view is ViewGroup) for(index in 0 until view.childCount) yieldAll(views(view.getChildAt(index)))
     }
     private fun content(): ViewGroup { val host=activity.findViewById<FrameLayout>(R.id.page_host); return host.getChildAt(host.childCount-1) as ViewGroup }
-    private fun pickers()=views(content()).filterIsInstance<Spinner>().filter { it.id!=R.id.appearance_picker }.toList()
-    private fun edits()=views(content()).filterIsInstance<EditText>().toList()
+    private fun pickers()=listOf(R.string.language_title,R.string.provider_label,R.string.delivery_label).map { label ->
+        views(content()).filterIsInstance<Spinner>().first { it.contentDescription==activity.getString(label) }
+    }
+    private fun edits()=listOf(activity.findViewById<EditText>(R.id.api_key_input)) +
+        listOf(R.string.webhook_label,R.string.endpoint_label,R.string.model_label,R.string.signing_label,R.string.prompt_label).map { label ->
+            views(content()).filterIsInstance<EditText>().first { it.contentDescription==activity.getString(label) }
+        }
     private fun scroll()=views(content()).filterIsInstance<ScrollView>().first()
     private fun openSettings() {
         onMain { (activity.findViewById<ViewGroup>(R.id.page_navigation).getChildAt(2) as Button).performClick() }
@@ -144,7 +149,7 @@ class SpinnerLocaleTest {
         onMain { (activity.findViewById<ViewGroup>(R.id.page_navigation).getChildAt(0) as Button).performClick() }
         instrumentation.waitForIdleSync()
         val needsChoice=Store(instrumentation.targetContext).use { it.timer().state in setOf("RUNNING","PAUSED") }
-        onMain { views(content()).filterIsInstance<Button>().first { it.text.toString()==activity.getString(R.string.timer_adjust) }.performClick() }
+        onMain { activity.findViewById<View>(R.id.focus_clock).performClick() }
         if(needsChoice) {
             val title=activity.getString(R.string.duration_next_only)
             await { instrumentation.uiAutomation.rootInActiveWindow?.findAccessibilityNodeInfosByText(title)?.isNotEmpty()==true }

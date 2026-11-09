@@ -157,7 +157,7 @@ Choose **Light**, **Dark**, or **System default** under **Settings → Appearanc
 
 **Muting noisy apps and status updates**
 
-You don't need an LLM burning tokens on repetitive Wi-Fi status alerts or music player controls. On the **Notifications** tab, tap **Stop collecting…** under any message to block that exact text, that specific notification channel, or the entire app. You can manage or undo these anytime under **Settings → Notification filters**.
+You don't need an LLM burning tokens on repetitive Wi-Fi status alerts or music player controls. Open **Notifications**, switch to the notification list, and tap **⋮** beside a message to block that exact text, that specific notification channel, or the entire app. You can manage or undo these anytime under **Settings → Notification filters**.
 
 **Getting summaries on your desktop**
 
@@ -169,8 +169,8 @@ Choose **Feishu bot** as the reminder destination, enable **Forward verification
 **Pausing or checking in early**
 
 - **Pause timer:** Stepping away for coffee? Pause the clock while StillBrief keeps catching notifications for the current round.
-- **End focus and analyze:** Wrap up early, get your summary, and stop the loop.
-- **Analyze this round's pending notifications:** Need to check if an expected message arrived without breaking your timer? Run a quick mid-round summary while the countdown keeps rolling.
+- **End and analyze:** Wrap up early, get your summary, and stop the loop.
+- **Analyze now:** Need to check if an expected message arrived without breaking your timer? Run a quick mid-round summary while the countdown keeps rolling.
 
 ## Feedback & building from source
 

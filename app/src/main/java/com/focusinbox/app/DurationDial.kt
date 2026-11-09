@@ -62,7 +62,7 @@ class DurationDial(baseContext: Context): View(Appearance.wrap(baseContext)) {
         super.onDraw(canvas)
         val cx=width/2f; val cy=height/2f; val r=radius
         arc.set(cx-r,cy-r,cx+r,cy+r)
-        paint.style=Paint.Style.STROKE; paint.strokeWidth=dp(10f); paint.strokeCap=Paint.Cap.ROUND
+        paint.style=Paint.Style.STROKE; paint.strokeWidth=dp(6f); paint.strokeCap=Paint.Cap.ROUND
         paint.color=palette.track; canvas.drawArc(arc,DurationGeometry.START,DurationGeometry.SWEEP,false,paint)
         paint.color=green; canvas.drawArc(arc,DurationGeometry.START,DurationGeometry.angle(minutes)-DurationGeometry.START,false,paint)
         paint.strokeWidth=dp(1f)
