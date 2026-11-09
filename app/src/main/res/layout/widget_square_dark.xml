@@ -15,7 +15,7 @@
             android:gravity="center" android:textSize="36sp" android:textColor="@color/sb_dark_text" android:fontFamily="sans-serif-medium"
             android:autoSizeTextType="uniform" android:autoSizeMinTextSize="20sp" android:autoSizeMaxTextSize="36sp" android:autoSizeStepGranularity="1sp"
             android:includeFontPadding="false" android:singleLine="true" android:visibility="gone" />
-        <TextView android:id="@+id/widget_time_static" android:layout_width="match_parent" android:layout_height="match_parent"
+        <TextView android:id="@+id/widget_time_static" android:fontFeatureSettings="tnum" android:layout_width="match_parent" android:layout_height="match_parent"
             android:text="@string/widget_preview_time" android:gravity="center" android:textSize="36sp"
             android:textColor="@color/sb_dark_text" android:fontFamily="sans-serif-medium" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="18sp" android:autoSizeMaxTextSize="36sp" android:autoSizeStepGranularity="1sp"
             android:includeFontPadding="false" android:maxLines="1" android:scrollHorizontally="false" />

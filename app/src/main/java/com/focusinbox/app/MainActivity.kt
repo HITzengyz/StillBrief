@@ -17,7 +17,6 @@ import android.os.Build
 import android.content.Intent
 import android.content.Context
 import android.graphics.Color
-import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
@@ -100,13 +99,13 @@ class MainActivity : Activity() {
         if(page==2) refreshLocalStatus()
         handler.removeCallbacks(tick); handler.post(tick)
     }
-    override fun onPause() { apiKeyField?.conceal(); resumed=false; handler.removeCallbacks(tick); pageTransition.finish(); FocusWidgets.refresh(this); super.onPause() }
+    override fun onPause() { apiKeyField?.conceal(); resumed=false; handler.removeCallbacks(tick); UiMotion.settle(content); pageTransition.finish(); FocusWidgets.refresh(this); super.onPause() }
     override fun onDestroy() { handler.removeCallbacks(tick); pageTransition.clear(); clearPickers(); dismissDialogs(); captureForm=null; super.onDestroy() }
     private fun label(text: String,size: Float=15f,bold: Boolean=false,parent: LinearLayout=content): TextView = TextView(this).also {
-        it.text=text; it.textSize=size; it.setTextColor(ink); it.setPadding(0,dp(6),0,dp(6)); if(bold) it.setTypeface(null,Typeface.BOLD); parent.addView(it)
+        it.text=text; it.textSize=size; it.setTextColor(ink); it.setPadding(0,dp(6),0,dp(6)); UiStyle.text(it,if(bold) 600 else 400); parent.addView(it)
     }
     private fun button(text: String,parent: LinearLayout=content,primary: Boolean=false,action: ()->Unit): Button = Button(this).also {
-        it.text=text; it.isAllCaps=false; it.textSize=15f; it.setTextColor(if(primary) palette.onAccent else green)
+        it.text=text; it.isAllCaps=false; it.textSize=15f; UiStyle.text(it,500); it.setTextColor(if(primary) palette.onAccent else green)
         it.stateListAnimator=null; it.elevation=0f; it.minimumHeight=dp(54); it.setPadding(dp(12),dp(10),dp(12),dp(10))
         val shape=GradientDrawable().apply { setColor(if(primary) green else palette.control); cornerRadius=dp(12).toFloat() }
         it.background=android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(palette.ripple),shape,null)
@@ -128,7 +127,7 @@ class MainActivity : Activity() {
         val nav=LinearLayout(this).apply { id=R.id.page_navigation; gravity=Gravity.CENTER; setPadding(dp(12),0,dp(12),dp(6)) }
         listOf(tr(R.string.nav_focus),tr(R.string.nav_notices),tr(R.string.nav_settings)).forEachIndexed { index,name ->
             val button=Button(this).apply {
-                text=name; setTextColor(green); textSize=14f; isAllCaps=false; minimumHeight=dp(54); setPadding(dp(4),dp(10),dp(4),dp(10))
+                text=name; setTextColor(green); textSize=14f; UiStyle.text(this,500); isAllCaps=false; minimumHeight=dp(54); setPadding(dp(4),dp(10),dp(4),dp(10))
                 stateListAnimator=null; elevation=0f
                 background=GradientDrawable().apply { cornerRadius=dp(12).toFloat() }
                 setOnClickListener { show(index) }
@@ -139,6 +138,7 @@ class MainActivity : Activity() {
     }
     private fun show(which: Int) {
         val previous=page
+        if(::content.isInitialized) UiMotion.settle(content)
         rememberScroll(); apiKeyField?.conceal(); apiKeyField=null; clearPickers(); uiGeneration++
         if(page==2) savedForm=captureForm?.invoke() ?: savedForm
         captureForm=null; localStatusView=null
@@ -177,7 +177,7 @@ class MainActivity : Activity() {
             textSize=13f
             layoutParams=LinearLayout.LayoutParams(-2,-2).apply { leftMargin=dp(8) }
         }
-        clock=label("25:00",58f,true,c).apply { gravity=Gravity.CENTER; setAutoSizeTextTypeUniformWithConfiguration(24,58,2,android.util.TypedValue.COMPLEX_UNIT_SP); contentDescription=tr(R.string.timer_adjust_description); setOnClickListener { editDuration() } }
+        clock=label("25:00",58f,true,c).apply { id=R.id.focus_clock; fontFeatureSettings="'tnum'"; gravity=Gravity.CENTER; setAutoSizeTextTypeUniformWithConfiguration(24,58,2,android.util.TypedValue.COMPLEX_UNIT_SP); contentDescription=tr(R.string.timer_adjust_description); setOnClickListener { editDuration() } }
         button(tr(R.string.timer_adjust),c) { editDuration() }
         status=label("",14f,parent=c)
         startButton=button(tr(R.string.timer_start),c,primary=true) { TimerEngine.start(this); show(0) }
@@ -328,7 +328,7 @@ class MainActivity : Activity() {
     }
     private fun field(title: String,value: String,secret: Boolean=false,multiline: Boolean=false,parent: LinearLayout=content): EditText {
         label(title,14f,true,parent)
-        return EditText(this).also { it.setText(value); it.textSize=14f; it.inputType=if(secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD else if(multiline) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE else InputType.TYPE_CLASS_TEXT; it.setSingleLine(!multiline); if(secret) it.maskSecret(); parent.addView(it,LinearLayout.LayoutParams(-1,-2)) }
+        return EditText(this).also { it.setText(value); it.textSize=14f; it.inputType=if(secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD else if(multiline) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE else InputType.TYPE_CLASS_TEXT; it.setSingleLine(!multiline); if(secret) it.maskSecret(); UiStyle.field(it); parent.addView(it,LinearLayout.LayoutParams(-1,-2)) }
     }
     private fun preferences() {
         val generation=uiGeneration
@@ -370,7 +370,7 @@ class MainActivity : Activity() {
         val targetPicker=MintSpinner(this,targets.map { targetName(it) },targets.indexOf(selectedTarget),tr(R.string.delivery_label))
         settingsPickers.add(targetPicker); content.addView(targetPicker,LinearLayout.LayoutParams(-1,-2))
         val targetHint=label(tr(R.string.delivery_saved_hint,targetName(settings.destination)),12f)
-        val enabled=Switch(this).apply { text=tr(R.string.cloud_enable); isChecked=retainedForm?.enabled ?: settings.enabled; tag=retainedForm?.consent==true }; content.addView(enabled)
+        val enabled=Switch(this).apply { UiStyle.toggle(this); text=tr(R.string.cloud_enable); isChecked=retainedForm?.enabled ?: settings.enabled; tag=retainedForm?.consent==true }; content.addView(enabled)
         enabled.setOnCheckedChangeListener { _,on ->
             if(on && !settings.enabled) alert().setTitle(tr(R.string.cloud_consent_title))
                 .setMessage(tr(R.string.cloud_consent_text))
@@ -379,7 +379,7 @@ class MainActivity : Activity() {
         }
         val remoteArea=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; visibility=if(selectedTarget==DeliveryTarget.FEISHU) View.VISIBLE else View.GONE }
         content.addView(remoteArea)
-        val codes=Switch(this).apply { text=tr(R.string.codes_enable); isChecked=retainedForm?.forwardCodes ?: settings.forwardCodes }; remoteArea.addView(codes)
+        val codes=Switch(this).apply { UiStyle.toggle(this); text=tr(R.string.codes_enable); isChecked=retainedForm?.forwardCodes ?: settings.forwardCodes }; remoteArea.addView(codes)
         label(tr(R.string.codes_help),12f,parent=remoteArea)
         val hook=field(tr(R.string.webhook_label),if(remoteLoaded) retainedForm?.webhook ?: secret { settings.webhook } else "",true,parent=remoteArea)
         label(tr(R.string.webhook_help),12f,parent=remoteArea)
@@ -403,9 +403,14 @@ class MainActivity : Activity() {
                 } catch(_: Exception) { settings.enabled=false; toast(tr(R.string.key_save_failed)) }
             }
         }
-        val advanced=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; visibility=if(retainedForm?.expanded==true) View.VISIBLE else View.GONE }
-        val toggle=button(if(advanced.visibility==View.VISIBLE) tr(R.string.advanced_collapse) else tr(R.string.advanced_expand)) { advanced.visibility=if(advanced.visibility==View.GONE) View.VISIBLE else View.GONE }
-        toggle.setOnClickListener { advanced.visibility=if(advanced.visibility==View.GONE) View.VISIBLE else View.GONE; toggle.text=if(advanced.visibility==View.VISIBLE) tr(R.string.advanced_collapse) else tr(R.string.advanced_expand) }
+        val advanced=LinearLayout(this).apply { id=R.id.advanced_fields; orientation=LinearLayout.VERTICAL; visibility=if(retainedForm?.expanded==true) View.VISIBLE else View.GONE }
+        val toggle=button(if(advanced.visibility==View.VISIBLE) tr(R.string.advanced_collapse) else tr(R.string.advanced_expand)) {}.apply { id=R.id.advanced_toggle }
+        toggle.setOnClickListener {
+            UiMotion.changeLayout(content) {
+                advanced.visibility=if(advanced.visibility==View.GONE) View.VISIBLE else View.GONE
+                toggle.text=tr(if(advanced.visibility==View.VISIBLE) R.string.advanced_collapse else R.string.advanced_expand)
+            }
+        }
         content.addView(advanced)
         label(tr(R.string.advanced_help),12f,parent=advanced)
         val endpoint=field(tr(R.string.endpoint_label),initial.endpoint,parent=advanced)
@@ -561,7 +566,7 @@ class MainActivity : Activity() {
         val am=getSystemService(ActivityManager::class.java)
         val recents=card(); label(tr(R.string.recents_title),17f,true,recents)
         label(tr(R.string.recents_help),13f,parent=recents)
-        val hidden=Switch(this).apply { text=tr(R.string.recents_hide); isChecked=settings.hideRecents }; recents.addView(hidden)
+        val hidden=Switch(this).apply { UiStyle.toggle(this); text=tr(R.string.recents_hide); isChecked=settings.hideRecents }; recents.addView(hidden)
         hidden.setOnCheckedChangeListener { _,on ->
             fun apply(value: Boolean) { settings.hideRecents=value; am.appTasks.forEach { it.setExcludeFromRecents(value) } }
             if(on) alert().setTitle(tr(R.string.recents_confirm_title)).setMessage(tr(R.string.recents_confirm_text))

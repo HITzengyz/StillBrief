@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.Color
-import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.StateListDrawable
@@ -41,13 +40,13 @@ class MintSpinner(baseContext: Context,labels: List<String>,selected: Int,descri
         addState(intArrayOf(),android.graphics.drawable.ColorDrawable(palette.surface))
     }
     private fun text()=TextView(this.context).apply {
-        textSize=15f; setTextColor(ink); typeface=Typeface.create("sans-serif",Typeface.NORMAL)
+        textSize=15f; setTextColor(ink); UiStyle.text(this)
         gravity=Gravity.CENTER_VERTICAL; minimumHeight=dp(48)
     }
     init {
         contentDescription=description
         minimumHeight=dp(52); setPadding(0,0,0,0); backgroundTintList=null
-        val fill=rounded(palette.control).apply { setStroke(dp(1),palette.outline) }
+        val fill=rounded(palette.control)
         background=RippleDrawable(ColorStateList.valueOf(pressedFill),fill,rounded(Color.WHITE))
         setPopupBackgroundDrawable(rounded(palette.surface))
         dropDownWidth=ViewGroup.LayoutParams.MATCH_PARENT; dropDownVerticalOffset=dp(4); dropDownHorizontalOffset=0

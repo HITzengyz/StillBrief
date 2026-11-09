@@ -41,7 +41,7 @@ class PageTransition(private val host: FrameLayout,private val animationsEnabled
         }
         val incoming=AnimatorSet().apply {
             playTogether(ObjectAnimator.ofFloat(next,View.ALPHA,0f,1f),ObjectAnimator.ofFloat(next,View.TRANSLATION_X,shift,0f))
-            duration=140; interpolator=PathInterpolator(0f,0f,0.2f,1f)
+            duration=180; interpolator=UiMotion.ease
             addListener(object: AnimatorListenerAdapter() {
                 override fun onAnimationStart(animation: Animator) { if(token==generation) next.interactive=true }
             })

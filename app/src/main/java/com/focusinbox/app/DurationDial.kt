@@ -27,7 +27,7 @@ class DurationDial(baseContext: Context): View(Appearance.wrap(baseContext)) {
     private val green=palette.accent
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
     private val arc=RectF()
-    private val scalePaint=Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign=Paint.Align.CENTER; typeface=Typeface.create("sans-serif",Typeface.NORMAL) }
+    private val scalePaint=Paint(Paint.ANTI_ALIAS_FLAG).apply { fontFeatureSettings="'tnum'"; textAlign=Paint.Align.CENTER; typeface=UiStyle.face(context) }
     private fun scaleTextSize()=sp(11f)
     // A circle enclosing the largest label keeps every angle clear of the outer ticks.
     private val scaleLabelExtent: Float get() {
@@ -84,11 +84,11 @@ class DurationDial(baseContext: Context): View(Appearance.wrap(baseContext)) {
         val x=cx+cos(angle).toFloat()*r; val y=cy+sin(angle).toFloat()*r
         paint.style=Paint.Style.FILL; paint.color=palette.surface; canvas.drawCircle(x,y,dp(10f),paint)
         paint.color=green; canvas.drawCircle(x,y,dp(6f),paint)
-        paint.textAlign=Paint.Align.CENTER
+        paint.textAlign=Paint.Align.CENTER; paint.fontFeatureSettings="'tnum'"
         val entries=listOf(
-            Triple(minutes.toString(),sp(62f),Typeface.create("sans-serif-medium",Typeface.NORMAL)),
-            Triple(context.getString(R.string.duration_minutes_unit),sp(15f),Typeface.create("sans-serif",Typeface.NORMAL)),
-            Triple(context.getString(R.string.duration_exact_hint),sp(11f),Typeface.create("sans-serif",Typeface.NORMAL)))
+            Triple(minutes.toString(),sp(62f),UiStyle.face(context,500)),
+            Triple(context.getString(R.string.duration_minutes_unit),sp(15f),UiStyle.face(context)),
+            Triple(context.getString(R.string.duration_exact_hint),sp(11f),UiStyle.face(context)))
         val sizes=entries.mapIndexed { index,(text,size,face) ->
             paint.typeface=face; paint.textSize=size
             min(size,size*(r*if(index==0) 1.35f else 1.65f)/paint.measureText(text).coerceAtLeast(1f))

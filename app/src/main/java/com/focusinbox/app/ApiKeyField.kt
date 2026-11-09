@@ -7,8 +7,8 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
-import android.os.Build
 import android.os.PersistableBundle
+import android.animation.ValueAnimator
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -27,16 +27,20 @@ class ApiKeyField(baseContext: Context,initial: String): LinearLayout(Appearance
         id=R.id.api_key_input; textSize=14f
         inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         setSingleLine(true); maskSecret(); setText(initial)
+        UiStyle.field(this,framed=false)
         minimumWidth=0; minWidth=0
     }
     private val reveal: ImageButton
-    private val copy: ImageButton
+    private lateinit var copy: ImageButton
     private val clear: ImageButton
     private var revealed=false
+    private val restoreCopy=Runnable { restoreCopyIcon(animate=true) }
     private val green=palette.accent
     private fun dp(value: Int)=(value*resources.displayMetrics.density).toInt()
     init {
         orientation=HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
+        background=UiStyle.fieldBackground(context)
+        editText.setOnFocusChangeListener { _,focused -> isActivated=focused }
         addView(editText,LayoutParams(0,LayoutParams.WRAP_CONTENT,1f))
         reveal=action(R.id.api_key_reveal,R.drawable.ic_key_visible,R.string.api_key_show) {
             val start=editText.selectionStart; val end=editText.selectionEnd
@@ -50,7 +54,12 @@ class ApiKeyField(baseContext: Context,initial: String): LinearLayout(Appearance
             // The literal is the platform key on API 33+, and remains readable by compatible keyboards on older devices.
             clip.description.extras=PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE",true) }
             context.getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
-            if(Build.VERSION.SDK_INT<33) Toast.makeText(context,R.string.api_key_copied,Toast.LENGTH_SHORT).show()
+            removeCallbacks(restoreCopy)
+            copy.setImageResource(R.drawable.ic_key_done); copy.isActivated=true
+            copy.contentDescription=context.getString(R.string.api_key_copied); copy.tooltipText=copy.contentDescription
+            copy.announceForAccessibility(copy.contentDescription)
+            UiMotion.confirm(copy)
+            postDelayed(restoreCopy,2500)
         }
         clear=action(R.id.api_key_clear,R.drawable.ic_key_clear,R.string.api_key_clear) {
             editText.text.clear(); conceal()
@@ -58,7 +67,7 @@ class ApiKeyField(baseContext: Context,initial: String): LinearLayout(Appearance
         }
         editText.addTextChangedListener(object: TextWatcher {
             override fun beforeTextChanged(s: CharSequence?,start: Int,count: Int,after: Int)=Unit
-            override fun onTextChanged(s: CharSequence?,start: Int,before: Int,count: Int) { updateEnabled() }
+            override fun onTextChanged(s: CharSequence?,start: Int,before: Int,count: Int) { restoreCopyIcon(); updateEnabled() }
             override fun afterTextChanged(s: Editable?)=Unit
         })
         updateEnabled()
@@ -79,7 +88,21 @@ class ApiKeyField(baseContext: Context,initial: String): LinearLayout(Appearance
         val populated=editText.length()>0
         listOf(copy,clear).forEach { it.isEnabled=populated; it.alpha=if(populated) 1f else 0.35f }
     }
+    private fun restoreCopyIcon(animate: Boolean=false) {
+        removeCallbacks(restoreCopy); copy.animate().cancel(); copy.animate().withEndAction(null)
+        fun reset() {
+            copy.setImageResource(R.drawable.ic_key_copy); copy.isActivated=false
+            copy.contentDescription=context.getString(R.string.api_key_copy); copy.tooltipText=copy.contentDescription
+            copy.scaleX=1f; copy.scaleY=1f
+        }
+        if(animate && isAttachedToWindow && ValueAnimator.areAnimatorsEnabled()) {
+            copy.animate().alpha(0f).setDuration(120).setInterpolator(UiMotion.ease).withEndAction {
+                reset(); copy.animate().alpha(1f).setDuration(120).withEndAction(null).start()
+            }.start()
+        } else { reset(); copy.alpha=if(copy.isEnabled) 1f else 0.35f }
+    }
     fun conceal() {
+        restoreCopyIcon()
         val start=editText.selectionStart; val end=editText.selectionEnd
         revealed=false; editText.maskSecret(); updateReveal()
         if(start>=0 && end>=0) editText.setSelection(start.coerceAtMost(editText.length()),end.coerceAtMost(editText.length()))

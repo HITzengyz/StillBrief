@@ -4,7 +4,6 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.content.Context
 import android.graphics.Color
-import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -33,11 +32,11 @@ class DurationPicker(baseContext: Context,initialMinutes: Int,private val headin
     private fun dp(value: Int)=(value*context.resources.displayMetrics.density).toInt()
     init { dial.setMinutes(initialMinutes); setCancelable(true); setCanceledOnTouchOutside(true) }
     private fun label(text: String,size: Float,color: Int=palette.text)=TextView(context).apply {
-        this.text=text; textSize=size; setTextColor(color); gravity=Gravity.CENTER
+        this.text=text; textSize=size; UiStyle.text(this); setTextColor(color); gravity=Gravity.CENTER
     }
     private fun shape(color: Int,radius: Int)=GradientDrawable().apply { setColor(color); cornerRadius=dp(radius).toFloat() }
     private fun action(text: String,primary: Boolean=false)=Button(context).apply {
-        this.text=text; isAllCaps=false; textSize=15f; stateListAnimator=null; elevation=0f
+        this.text=text; isAllCaps=false; textSize=15f; UiStyle.text(this,500,numbers=true); stateListAnimator=null; elevation=0f
         minimumHeight=dp(52); minWidth=0; setPadding(dp(12),dp(10),dp(12),dp(10))
         background=shape(if(primary) green else palette.control,14)
         setTextColor(if(primary) palette.onAccent else green)
@@ -60,7 +59,7 @@ class DurationPicker(baseContext: Context,initialMinutes: Int,private val headin
         }.apply { isVerticalScrollBarEnabled=false; overScrollMode=View.OVER_SCROLL_IF_CONTENT_SCROLLS }
         val body=LinearLayout(context).apply { orientation=LinearLayout.VERTICAL }
         body.addView(View(context).apply { background=shape(palette.outline,2); importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO },LinearLayout.LayoutParams(dp(34),dp(4)).apply { gravity=Gravity.CENTER_HORIZONTAL; bottomMargin=dp(16) })
-        body.addView(label(heading,19f).apply { setTypeface(null,Typeface.BOLD) },LinearLayout.LayoutParams(-1,-2))
+        body.addView(label(heading,19f).apply { UiStyle.text(this,600) },LinearLayout.LayoutParams(-1,-2))
         dial.id=R.id.duration_dial
         body.addView(dial,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(4) })
         body.addView(label(context.getString(R.string.duration_drag_hint),12f,palette.secondary),LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(16) })
@@ -123,6 +122,7 @@ class DurationPicker(baseContext: Context,initialMinutes: Int,private val headin
         if(numericDialog?.isShowing==true) return
         val input=EditText(context).apply {
             setTextColor(palette.text); setHintTextColor(palette.secondary)
+            UiStyle.field(this); fontFeatureSettings="'tnum'"
             id=R.id.duration_exact_input; inputType=InputType.TYPE_CLASS_NUMBER; setText(dial.minutes.toString()); setSelectAllOnFocus(true); hint=context.getString(R.string.duration_hint)
         }
         val wrapper=LinearLayout(context).apply { setPadding(dp(24),dp(8),dp(24),0); addView(input,LinearLayout.LayoutParams(-1,-2)) }
