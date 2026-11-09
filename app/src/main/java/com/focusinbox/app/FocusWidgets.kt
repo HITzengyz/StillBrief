@@ -14,9 +14,11 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.concurrent.Executors
 
-/** The launcher owns the ticking Chronometer; only real state changes refresh RemoteViews. */
+/** Widgets show a fixed check time; only real state changes refresh RemoteViews. */
 object FocusWidgets {
     const val OPEN_ACTION="com.focusinbox.app.widget.OPEN"
     const val COMMAND_ACTION="com.focusinbox.app.widget.COMMAND"
@@ -63,7 +65,7 @@ object FocusWidgets {
     fun perform(context: Context,action: WidgetAction,token: Long) {
         // Serialize the deadline catch-up, stale-button check and action with in-app timer controls.
         synchronized(TimerEngine) {
-            TimerEngine.restore(context)
+            TimerEngine.restore(context,updateWidgets=false)
             if(snapshot(context).allows(action,token)) when(action) {
                 WidgetAction.START,WidgetAction.RESUME -> TimerEngine.start(context)
                 WidgetAction.START_25 -> TimerEngine.start(context,25)
@@ -77,13 +79,18 @@ object FocusWidgets {
         }
         updateAll(context)
     }
-    fun updateAll(context: Context) {
+    fun updateAll(context: Context) = synchronized(TimerEngine) {
         val manager=AppWidgetManager.getInstance(context)
         val wide=manager.getAppWidgetIds(ComponentName(context,FocusWideWidget::class.java))
         val square=manager.getAppWidgetIds(ComponentName(context,FocusSquareWidget::class.java))
         val quick=manager.getAppWidgetIds(ComponentName(context,FocusQuickWidget::class.java))
-        if(wide.isEmpty() && square.isEmpty() && quick.isEmpty()) return
-        val state=snapshot(context)
+        if(wide.isEmpty() && square.isEmpty() && quick.isEmpty()) return@synchronized
+        var state=snapshot(context)
+        if(state.timerState=="RUNNING" && state.end<=System.currentTimeMillis()) {
+            // Reconcile before publishing; restore must not recursively enter this renderer.
+            TimerEngine.restore(context,updateWidgets=false)
+            state=snapshot(context)
+        }
         for(id in wide) manager.updateAppWidget(id,render(context,id,true,state))
         for(id in square) manager.updateAppWidget(id,render(context,id,false,state))
         for(id in quick) manager.updateAppWidget(id,renderQuick(context,id,state))
@@ -132,14 +139,25 @@ object FocusWidgets {
     private fun bindTime(context: Context,views: RemoteViews,state: WidgetState,now: Long,elapsed: Long) {
         val c=LocaleHelper.wrap(context)
         val left=state.remainingAt(now)
-        val ticking=state.timerState=="RUNNING" && left>0
-        views.setViewVisibility(R.id.widget_timer,if(ticking) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.widget_time_static,if(ticking) View.GONE else View.VISIBLE)
-        views.setTextViewText(R.id.widget_time_static,WidgetState.time(left))
-        views.setChronometerCountDown(R.id.widget_timer,true)
-        views.setChronometer(R.id.widget_timer,elapsed+left,null,ticking)
+        val running=state.timerState=="RUNNING"
+        val checkTime=if(running && state.end>now)
+            SimpleDateFormat("HH:mm",c.resources.configuration.locales[0]).format(Date(state.end)) else null
+        val text=when {
+            checkTime!=null -> c.getString(R.string.widget_check_at,checkTime)
+            running -> c.getString(R.string.widget_check_due)
+            else -> WidgetState.time(left)
+        }
+        // Stop and hide an already-running host Chronometer even when RemoteViews is reapplied.
+        views.setChronometer(R.id.widget_timer,elapsed,null,false)
+        views.setViewVisibility(R.id.widget_timer,View.GONE)
+        views.setViewVisibility(R.id.widget_time_static,View.VISIBLE)
+        views.setTextViewText(R.id.widget_time_static,text)
         views.setOnClickPendingIntent(R.id.widget_time_area,open(context,0))
-        views.setContentDescription(R.id.widget_time_area,c.getString(R.string.widget_open_focus))
+        views.setContentDescription(R.id.widget_time_area,when {
+            checkTime!=null -> c.getString(R.string.widget_open_check_time,checkTime)
+            running -> c.getString(R.string.widget_check_due)
+            else -> c.getString(R.string.widget_open_focus)
+        })
     }
     fun renderQuick(context: Context,id: Int,state: WidgetState,now: Long=System.currentTimeMillis(),elapsed: Long=SystemClock.elapsedRealtime()): RemoteViews {
         val c=LocaleHelper.wrap(context)
@@ -168,7 +186,7 @@ object FocusWidgets {
 open class FocusWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context,manager: AppWidgetManager,ids: IntArray) {
         val result=goAsync()
-        FocusWidgets.execute { try { TimerEngine.restore(context); FocusWidgets.updateAll(context) } finally { result.finish() } }
+        FocusWidgets.execute { try { TimerEngine.restore(context) } finally { result.finish() } }
     }
     override fun onAppWidgetOptionsChanged(context: Context,manager: AppWidgetManager,id: Int,options: Bundle) { FocusWidgets.refresh(context) }
 }
@@ -185,7 +203,7 @@ class WidgetActionReceiver : BroadcastReceiver() {
         FocusWidgets.execute {
             try {
                 if(action!=null) FocusWidgets.perform(context,action,intent.getLongExtra("widget_token",-1))
-                else { TimerEngine.restore(context); FocusWidgets.updateAll(context) }
+                else TimerEngine.restore(context)
             } finally { result.finish() }
         }
     }

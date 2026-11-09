@@ -131,14 +131,15 @@ object TimerEngine {
         schedule(c,Store(c).use { it.timer() }); BatchEngine.resume(c); FocusWidgets.refresh(c)
         return changed!=null
     }
-    @Synchronized fun restore(c: Context) {
+    @Synchronized fun restore(c: Context,updateWidgets: Boolean=true) {
         val old=Store(c).use { it.timer() }
         Store(c).use { it.advanceTimer() }
         val current=Store(c).use { it.timer() }
         if(old.token!=current.token) cancel(c,old.token)
         // Pre-2.0 used this one shared timer work name. It is never used for new rounds.
         WorkManager.getInstance(c).cancelUniqueWork("focus-timer")
-        schedule(c,current); BatchEngine.resume(c); FocusWidgets.refresh(c)
+        schedule(c,current); BatchEngine.resume(c)
+        if(updateWidgets) FocusWidgets.updateAll(c)
     }
     private fun schedule(c: Context,t: Store.Timer) {
         if(t.state!="RUNNING") return
@@ -153,14 +154,28 @@ object TimerEngine {
     }
     @Synchronized fun finish(c: Context,token: Long) {
         val changed=Store(c).use { it.advanceTimer(token) }
-        if(!changed) return
-        // The next round has a different unique work name; enqueueing it never cancels this worker.
-        schedule(c,Store(c).use { it.timer() })
-        BatchEngine.resume(c); FocusWidgets.refresh(c)
+        if(changed) {
+            // The next round has a different unique work name; enqueueing it never cancels this worker.
+            schedule(c,Store(c).use { it.timer() })
+            BatchEngine.resume(c)
+        }
+        // Publish before the timer worker/receiver completes, including stale callbacks.
+        FocusWidgets.updateAll(c)
     }
 }
 class TimerWorker(c: Context,p: WorkerParameters): Worker(c,p) {
     override fun doWork(): Result { TimerEngine.finish(applicationContext,inputData.getLong("token",0)); return Result.success() }
 }
-class TimerReceiver : BroadcastReceiver() { override fun onReceive(c: Context,i: Intent) { TimerEngine.finish(c,i.getLongExtra("token",0)) } }
-class BootReceiver : BroadcastReceiver() { override fun onReceive(c: Context,i: Intent) { if(i.action==Intent.ACTION_BOOT_COMPLETED) { TimerEngine.restore(c); BatchEngine.resume(c) } } }
+class TimerReceiver : BroadcastReceiver() {
+    override fun onReceive(c: Context,i: Intent) {
+        val result=goAsync(); val app=c.applicationContext; val token=i.getLongExtra("token",0)
+        FocusWidgets.execute { try { TimerEngine.finish(app,token) } finally { result.finish() } }
+    }
+}
+class BootReceiver : BroadcastReceiver() {
+    override fun onReceive(c: Context,i: Intent) {
+        if(i.action!=Intent.ACTION_BOOT_COMPLETED) return
+        val result=goAsync(); val app=c.applicationContext
+        FocusWidgets.execute { try { TimerEngine.restore(app) } finally { result.finish() } }
+    }
+}

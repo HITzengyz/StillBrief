@@ -169,10 +169,11 @@ class FocusWidgetTest {
             waitFor("Both hosts must render actual RemoteViews") { wideView?.findViewById<View>(R.id.widget_timer)!=null && squareView?.findViewById<View>(R.id.widget_timer)!=null }
             ins.waitForIdleSync(); SystemClock.sleep(1200)
             ins.runOnMainSync {
-                assertEquals(wideView!!.findViewById<Chronometer>(R.id.widget_timer).text,squareView!!.findViewById<Chronometer>(R.id.widget_timer).text)
+                assertEquals(wideView!!.findViewById<TextView>(R.id.widget_time_static).text,squareView!!.findViewById<TextView>(R.id.widget_time_static).text)
                 assertTrue(wideView!!.findViewById<Button>(R.id.widget_primary).isEnabled)
                 assertEquals(activity.getString(R.string.widget_analyze),wideView!!.findViewById<Button>(R.id.widget_primary).text)
-                assertEquals(View.VISIBLE,wideView!!.findViewById<View>(R.id.widget_timer).visibility)
+                assertEquals(View.GONE,wideView!!.findViewById<View>(R.id.widget_timer).visibility)
+                assertEquals(View.VISIBLE,wideView!!.findViewById<View>(R.id.widget_time_static).visibility)
             }
             val bitmap=ins.uiAutomation.takeScreenshot()
             File(c.getExternalFilesDir(null),"widgets-preview.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }; bitmap.recycle()

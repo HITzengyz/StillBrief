@@ -12,8 +12,8 @@
                 android:includeFontPadding="false" android:singleLine="true" android:visibility="gone" />
             <TextView android:id="@+id/widget_time_static" android:layout_width="match_parent" android:layout_height="match_parent"
                 android:text="@string/widget_preview_time" android:gravity="start|center_vertical" android:textSize="27sp"
-                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="18sp" android:autoSizeMaxTextSize="27sp" android:autoSizeStepGranularity="1sp"
-                android:textColor="@color/sb_light_text" android:fontFamily="sans-serif-medium" android:includeFontPadding="false" android:singleLine="true" />
+                android:autoSizeTextType="uniform" android:autoSizeMinTextSize="14sp" android:autoSizeMaxTextSize="27sp" android:autoSizeStepGranularity="1sp"
+                android:textColor="@color/sb_light_text" android:fontFamily="sans-serif-medium" android:includeFontPadding="false" android:maxLines="1" android:scrollHorizontally="false" />
         </FrameLayout>
         <LinearLayout android:layout_width="match_parent" android:layout_height="18dp" android:gravity="center_vertical">
             <TextView android:id="@+id/widget_mode" android:layout_width="wrap_content" android:layout_height="match_parent"

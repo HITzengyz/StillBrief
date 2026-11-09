@@ -136,11 +136,13 @@ Long-press an empty area of your home screen, find **StillBrief** in the widget 
 
 **2×1 Quick focus** starts a session with one tap on **25, 35, or 45** minutes. Once running, tap **Pause**, then **Resume** when ready. It follows the Single or Loop mode selected in the app. Every loop uses the chosen preset without changing your saved default duration.
 
-The countdown stays in sync with the app. Buttons work directly, without a confirmation dialog or opening the app:
+While running, widgets show the scheduled check time, such as **Check 11:35**. Pausing shows the remaining duration; each new loop updates the check time. The app keeps its live countdown.
+
+Buttons work directly, without a confirmation dialog or opening the app:
 
 - **Analyze** reviews pending messages from this round while the timer and loop keep going.
 - **End & analyze** ends this round, analyzes the remaining messages, and stops the loop.
-- When idle, tap **Start focus**; when paused, tap **Resume**. Tap the countdown to open Focus and change the duration or mode.
+- When idle, tap **Start focus**; when paused, tap **Resume**. Tap the time to open Focus and change the duration or mode.
 
 Analyze is disabled when there is nothing pending or an analysis is already running. All three widgets control the same focus session; analysis controls are on the 4×1 bar and 2×2 tile.
 
