@@ -1,13 +1,13 @@
 # 发布 StillBrief
 
-当前构建版本为 2.6.2，versionCode 23。使用 release 构建，签名安装包命名为 `StillBrief-2.6.2.apk`。
+当前构建版本为 2.6.3，versionCode 24。使用 release 构建，签名安装包命名为 `StillBrief-2.6.3.apk`。
 
 ## 构建与签名
 
 ```sh
 ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
 ./gradlew connectedDebugAndroidTest
-bash scripts/sign-release.sh /path/to/StillBrief-2.6.2.apk
+bash scripts/sign-release.sh /path/to/StillBrief-2.6.3.apk
 ```
 
 设置 JDK17、`ANDROID_HOME`，安装 Android SDK35 与 build-tools35.0.0。签名脚本默认使用本地 `.signing/`，也可用 `STILLBRIEF_SIGNING_DIR` 指定私有备份目录。
@@ -18,4 +18,4 @@ bash scripts/sign-release.sh /path/to/StillBrief-2.6.2.apk
 
 ## 发布
 
-检查APK版本与签名、覆盖升级后的配置、单次与循环模式，以及两个桌面小组件的开始、分析、结束与多实例同步。GitHub创建 `v2.6.2` 正式Release，附件只上传APK及其SHA256校验文件，不勾选预发布。源码由GitHub随标签提供。
+检查APK版本与签名、覆盖升级后的配置、单次与循环模式，以及两个桌面小组件的开始、分析、结束与多实例同步。GitHub创建 `v2.6.3` 正式Release，附件只上传APK及其SHA256校验文件，不勾选预发布。源码由GitHub随标签提供。

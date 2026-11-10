@@ -1,6 +1,9 @@
 package com.focusinbox.app
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.animation.ValueAnimator
 import android.provider.Settings.Global
 import android.os.SystemClock
@@ -46,14 +49,55 @@ class CountdownAnimationTest {
                 assertFalse(clock.isTransitionRunning)
                 clock.setCountdown("35:00"); assertFalse(clock.isTransitionRunning)
                 clock.setCountdown("34:59"); assertEquals("34:59",clock.text.toString()); assertTrue(clock.isTransitionRunning)
-                clock.setCountdown("34:58"); assertTrue(clock.isTransitionRunning)
+                clock.setCountdown("34:58"); assertFalse(clock.isTransitionRunning)
             }
             await { !clock.isTransitionRunning }
             main { assertEquals("34:58",clock.text.toString()); assertEquals(1f,clock.alpha,0f) }
-            // The changing minute digit count must not leave a stale glyph or animation running.
-            main { clock.setCountdown("100:00",false); clock.setCountdown("99:59"); assertTrue(clock.isTransitionRunning) }
+            // Resizing and large jumps snap to the current value instead of rolling the whole timer.
+            main { clock.setCountdown("100:00",false); clock.setCountdown("99:59"); assertFalse(clock.isTransitionRunning); clock.setCountdown("20:00"); assertFalse(clock.isTransitionRunning) }
             await { !clock.isTransitionRunning }
-            main { assertEquals("99:59",clock.text.toString()) }
+            main { assertEquals("20:00",clock.text.toString()) }
+        } finally { main { a.finish() } }
+    }
+
+    @Test fun rollingDoesNotBlankTheChangingDigitOrMoveItsNeighbors() {
+        val a=launch()
+        try {
+            val clock=clock(a)
+            main { clock.setTextColor(Color.BLACK); clock.setCountdown("34:59",false) }
+            ins.waitForIdleSync()
+            lateinit var before: Bitmap
+            lateinit var animation: ValueAnimator
+            var boundary=0
+            main {
+                before=Bitmap.createBitmap(clock.width,clock.height,Bitmap.Config.ARGB_8888).also { clock.draw(Canvas(it)) }
+                boundary=(clock.compoundPaddingLeft+clock.layout.getPrimaryHorizontal(4)).toInt()
+                clock.setCountdown("34:58")
+                animation=CountdownTextView::class.java.getDeclaredField("animator").apply { isAccessible=true }.get(clock) as ValueAnimator
+                animation.pause()
+            }
+            ins.waitForIdleSync()
+            main {
+                fun ink(bitmap: Bitmap): Int {
+                    var count=0
+                    for(y in 0 until bitmap.height) for(x in boundary until bitmap.width) if(Color.alpha(bitmap.getPixel(x,y))>=192) count++
+                    return count
+                }
+                val reference=ink(before)
+                assertTrue(reference>0)
+                for(phase in listOf(.25f,.4f,.5f,.75f)) {
+                    animation.setCurrentFraction(phase)
+                    val frame=Bitmap.createBitmap(clock.width,clock.height,Bitmap.Config.ARGB_8888)
+                    try {
+                        clock.draw(Canvas(frame))
+                        assertTrue("Changing digit must stay visible at $phase",ink(frame)>reference/4)
+                        for(y in 0 until frame.height) for(x in 0 until boundary-2) {
+                            assertEquals("Unchanged digit moved at $phase ($x,$y)",before.getPixel(x,y),frame.getPixel(x,y))
+                        }
+                    } finally { frame.recycle() }
+                }
+                animation.end(); before.recycle()
+            }
         } finally { main { a.finish() } }
     }
 
@@ -120,7 +164,7 @@ class CountdownAnimationTest {
         settings.appearance=if(args.getString("appearance")=="dark") AppearanceMode.DARK else AppearanceMode.LIGHT
         settings.minutes=35; settings.enabled=false; TimerEngine.rest(c); TimerEngine.start(c)
         val a=launch()
-        try { SystemClock.sleep(7000) }
+        try { SystemClock.sleep(1000); TimerEngine.adjustRemaining(c,35); SystemClock.sleep(8000) }
         finally { main { a.finish() }; TimerEngine.rest(c); settings.appearance=old; settings.minutes=minutes; settings.enabled=enabled }
     }
 }
