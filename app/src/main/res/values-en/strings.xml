@@ -164,8 +164,8 @@
     <string name="background_intro">Complete the two steps below so StillBrief can keep collecting notifications in the background.</string>
     <string name="access_granted">Allowed</string>
     <string name="access_missing">Not allowed</string>
-    <string name="connection_active">Listener connected</string>
-    <string name="connection_missing">Listener disconnected</string>
+    <string name="connection_active">Connected</string>
+    <string name="connection_missing">Disconnected</string>
     <string name="alarm_available">Available</string>
     <string name="alarm_missing">Not allowed; screen-off triggers may be delayed</string>
     <string name="background_restricted">Restricted</string>
@@ -287,4 +287,9 @@
     <string name="codes_record">Instant verification code</string>
     <string name="error_codes_disabled">Code forwarding is off or reminders are now on-device. Nothing was sent.</string>
     <string name="error_code_expired">This code is over 10 minutes old and will not be forwarded.</string>
+    <string name="status_prefix">"%1$s: "</string>
+    <string name="status_access">"Notification access"</string>
+    <string name="status_connection">"Notification listener"</string>
+    <string name="status_alarm">"Exact alarms"</string>
+    <string name="status_background">"Background restriction"</string>
 </resources>

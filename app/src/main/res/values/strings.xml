@@ -164,8 +164,8 @@
     <string name="background_intro">完成下面两项设置，让息间在后台继续收集通知。</string>
     <string name="access_granted">已授权</string>
     <string name="access_missing">未授权</string>
-    <string name="connection_active">监听已连接</string>
-    <string name="connection_missing">监听未连接</string>
+    <string name="connection_active">已连接</string>
+    <string name="connection_missing">未连接</string>
     <string name="alarm_available">可用</string>
     <string name="alarm_missing">未授权，熄屏触发可能延迟</string>
     <string name="background_restricted">正在限制</string>
@@ -287,4 +287,9 @@
     <string name="codes_record">验证码即时转发</string>
     <string name="error_codes_disabled">验证码转发已关闭或提醒方式已改为本机，未发送。</string>
     <string name="error_code_expired">这条验证码已超过 10 分钟，不再转发。</string>
+    <string name="status_prefix">"%1$s："</string>
+    <string name="status_access">"通知读取"</string>
+    <string name="status_connection">"通知监听"</string>
+    <string name="status_alarm">"准时闹钟"</string>
+    <string name="status_background">"后台限制"</string>
 </resources>

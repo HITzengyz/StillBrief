@@ -181,10 +181,21 @@ class MainActivity : Activity() {
     private fun row(parent: LinearLayout=content): LinearLayout = LinearLayout(this).also {
         it.gravity=Gravity.CENTER_VERTICAL; parent.addView(it,LinearLayout.LayoutParams(-1,-2))
     }
-    private fun quietAction(text: String,parent: LinearLayout=content,icon: String="chevron",action: ()->Unit): Button = button(text,parent,action=action).apply {
-        minimumHeight=dp(48); gravity=Gravity.CENTER_VERTICAL or Gravity.START
-        setCompoundDrawablesWithIntrinsicBounds(null,null,UiSymbols.drawable(this@MainActivity,icon,green,18),null)
+    private fun quietAction(text: String,parent: LinearLayout=content,icon: String="chevron",tint: Int=green,action: ()->Unit): Button = button(text,parent,action=action).apply {
+        minimumHeight=dp(48); gravity=Gravity.CENTER_VERTICAL or Gravity.START; setTextColor(tint)
+        setCompoundDrawablesWithIntrinsicBounds(null,null,UiSymbols.drawable(this@MainActivity,icon,tint,18),null)
         background=android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(palette.ripple),android.graphics.drawable.ColorDrawable(Color.TRANSPARENT),null)
+    }
+    private fun availabilityColor(available: Boolean?)=when(available) { true -> palette.success; false -> palette.error; null -> palette.secondary }
+    private fun batchStateColor(state: String)=when(state) {
+        "DONE","EMPTY" -> palette.success
+        "FAILED","SEND_FAILED" -> palette.error
+        else -> palette.secondary
+    }
+    private fun coloredStatus(prefix: String,value: String,color: Int): CharSequence = android.text.SpannableStringBuilder(prefix).append(
+        value,android.text.style.ForegroundColorSpan(color),android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    private fun statusLine(title: Int,value: String,available: Boolean?,parent: LinearLayout) {
+        label("",14f,parent=parent).text=coloredStatus(tr(R.string.status_prefix,tr(title)),value,availabilityColor(available))
     }
     private fun divider(parent: LinearLayout=content,space: Int=8) {
         parent.addView(View(this).apply { setBackgroundColor(palette.outline); alpha=0.65f; importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO },
@@ -294,16 +305,19 @@ class MainActivity : Activity() {
             focusProgress?.progress=if(t.state=="IDLE") 1f else (millis.toFloat()/t.interval.coerceAtLeast(1)).coerceIn(0f,1f)
             pending?.text=tr(R.string.design_notice_count,db.pendingCount())
             nextCheck?.text=if(t.state=="RUNNING") android.text.format.DateFormat.getTimeFormat(this).format(Date(t.end)) else "—"
-            lastSummary?.text=last?.let { if(it.message.isNotBlank()) it.message else stateName(it.state) } ?: tr(R.string.no_batches)
+            lastSummary?.apply {
+                text=last?.let { if(it.message.isNotBlank()) it.message else stateName(it.state) } ?: tr(R.string.no_batches)
+                setTextColor(if(last!=null && last.message.isBlank()) batchStateColor(last.state) else ink)
+            }
             focusAlerts?.let { alerts ->
                 val signature="${InboxListener.connected}:${TimerEngine.exact(this)}:${settings.enabled}:${last?.error.orEmpty()}"
                 if(alerts.tag==signature) return@let
                 alerts.tag=signature
                 alerts.removeAllViews()
-                if(!InboxListener.connected) quietAction(tr(R.string.design_listener_action),alerts) { openSystem(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
-                if(!TimerEngine.exact(this) && Build.VERSION.SDK_INT>=31) quietAction(tr(R.string.design_alarm_action),alerts) { openSystem(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,Uri.parse("package:$packageName"))) }
-                if(!settings.enabled) quietAction(tr(R.string.design_ai_disabled),alerts) { show(2) }
-                if(last!=null && last.error.isNotEmpty()) quietAction(LocaleHelper.renderError(this,last.error),alerts) { show(1) }
+                if(!InboxListener.connected) quietAction(tr(R.string.design_listener_action),alerts,tint=palette.error) { openSystem(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+                if(!TimerEngine.exact(this) && Build.VERSION.SDK_INT>=31) quietAction(tr(R.string.design_alarm_action),alerts,tint=palette.error) { openSystem(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,Uri.parse("package:$packageName"))) }
+                if(!settings.enabled) quietAction(tr(R.string.design_ai_disabled),alerts,tint=palette.secondary) { show(2) }
+                if(last!=null && last.error.isNotEmpty()) quietAction(LocaleHelper.renderError(this,last.error),alerts,tint=palette.error) { show(1) }
             }
         }
     }
@@ -331,11 +345,11 @@ class MainActivity : Activity() {
             if(batches.isEmpty()) label(tr(R.string.history_empty),13f)
             batches.forEach { b ->
                 val c=card()
-                label("${briefTime(b.created)} · ${stateName(b.state)}",12f,parent=c).setTextColor(palette.secondary)
+                label("",12f,parent=c).text=coloredStatus("${briefTime(b.created)} · ",stateName(b.state),batchStateColor(b.state))
                 if(b.message.isNotBlank()) label(b.message,17f,parent=c).setTextIsSelectable(true)
                 label(targetName(b.target),12f,parent=c).setTextColor(palette.secondary)
                 if(b.instantKey.isNotEmpty()) label(tr(R.string.codes_record),12f,parent=c)
-                if(b.error.isNotBlank()) label(LocaleHelper.renderError(this,b.error),14f,parent=c)
+                if(b.error.isNotBlank()) label(LocaleHelper.renderError(this,b.error),14f,parent=c).setTextColor(palette.error)
                 val unprocessed=b.state in setOf("QUEUED","FAILED")
                 val records=if(unprocessed) db.visibleNotices(b.id) else db.notices(b.id)
                 divider(c,2)
@@ -382,9 +396,9 @@ class MainActivity : Activity() {
         if(batch!=null) {
             label(tr(R.string.batch_detail_title,batch.id),18f,true,list)
             if(batch.roundId>0) label(tr(R.string.batch_focus_window,time(batch.roundStart),if(batch.roundEnd>0) time(batch.roundEnd) else tr(R.string.focus_window_open)),12f,parent=list)
-            label(tr(R.string.batch_destination,targetName(batch.target))+" · "+stateName(batch.state),13f,parent=list)
+            label("",13f,parent=list).text=coloredStatus(tr(R.string.batch_destination,targetName(batch.target))+" · ",stateName(batch.state),batchStateColor(batch.state))
             if(batch.message.isNotBlank()) label(batch.message,15f,parent=list)
-            if(batch.error.isNotBlank()) label(LocaleHelper.renderError(this,batch.error),13f,parent=list)
+            if(batch.error.isNotBlank()) label(LocaleHelper.renderError(this,batch.error),13f,parent=list).setTextColor(palette.error)
         }
         label(if(audit) tr(R.string.audit_help) else tr(R.string.unprocessed_help),12f,parent=list)
         notices.forEach { noticeCard(list,it,audit) }
@@ -642,7 +656,7 @@ class MainActivity : Activity() {
         button(tr(R.string.system_settings),autostart) { openSystem(Intent(AndroidSettings.ACTION_SETTINGS)) }
 
         val battery=card(); label(tr(R.string.battery_step_title),17f,true,battery)
-        label(tr(if(state.batteryExempt) R.string.battery_optimization_off else R.string.battery_optimization_on),15f,true,battery)
+        label(tr(if(state.batteryExempt) R.string.battery_optimization_off else R.string.battery_optimization_on),15f,true,battery).setTextColor(availabilityColor(state.batteryExempt))
         label(tr(R.string.battery_step_help),14f,parent=battery)
         if(BackgroundGuide.isHonorOrHuawei()) label(tr(R.string.battery_honor_help),13f,parent=battery)
         button(tr(if(state.batteryExempt) R.string.battery_settings else R.string.battery_request),battery,primary=!state.batteryExempt) {
@@ -650,7 +664,7 @@ class MainActivity : Activity() {
             if(!BackgroundGuide.openBatteryScreens(packageName,current.batteryExempt) { startActivity(it) }) toast(tr(R.string.battery_entry_missing))
         }
         if(state.powerSaveMode) {
-            label(tr(R.string.power_saver_active),15f,true,battery)
+            label(tr(R.string.power_saver_active),15f,true,battery).setTextColor(palette.error)
             label(tr(R.string.power_saver_help),13f,parent=battery)
             button(tr(R.string.power_saver_settings),battery) { openSystem(Intent(AndroidSettings.ACTION_BATTERY_SAVER_SETTINGS)) }
         }
@@ -663,12 +677,13 @@ class MainActivity : Activity() {
         val authorized=if(Build.VERSION.SDK_INT>=27) getSystemService(NotificationManager::class.java).isNotificationListenerAccessGranted(component)
             else AndroidSettings.Secure.getString(contentResolver,"enabled_notification_listeners").orEmpty().split(":").contains(component.flattenToString())
         val permissions=card(); label(tr(R.string.background_permissions_title),17f,true,permissions)
-        label(tr(R.string.background_permissions_states,
-            tr(if(authorized) R.string.access_granted else R.string.access_missing),
-            tr(if(InboxListener.connected) R.string.connection_active else R.string.connection_missing),
-            tr(if(TimerEngine.exact(this)) R.string.alarm_available else R.string.alarm_missing),
-            tr(when(state.backgroundRestricted) { true -> R.string.background_restricted; false -> R.string.background_not_reported; null -> R.string.background_unsupported })
-        ),14f,parent=permissions)
+        statusLine(R.string.status_access,tr(if(authorized) R.string.access_granted else R.string.access_missing),authorized,permissions)
+        statusLine(R.string.status_connection,tr(if(InboxListener.connected) R.string.connection_active else R.string.connection_missing),InboxListener.connected,permissions)
+        val exact=TimerEngine.exact(this)
+        statusLine(R.string.status_alarm,tr(if(exact) R.string.alarm_available else R.string.alarm_missing),exact,permissions)
+        statusLine(R.string.status_background,
+            tr(when(state.backgroundRestricted) { true -> R.string.background_restricted; false -> R.string.background_not_reported; null -> R.string.background_unsupported }),
+            state.backgroundRestricted?.not(),permissions)
         button(tr(R.string.notification_access_settings),permissions) { openSystem(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
         if(Build.VERSION.SDK_INT>=31) button(tr(R.string.alarm_settings),permissions) { openSystem(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,Uri.parse("package:$packageName"))) }
         button(tr(R.string.refresh_status),permissions) { show(4) }
@@ -695,11 +710,11 @@ class MainActivity : Activity() {
                 LocalNoticeStatus.APP_BLOCKED -> if(page==2) R.string.design_local_app else R.string.local_status_app
                 LocalNoticeStatus.CHANNEL_BLOCKED -> if(page==2) R.string.design_local_channel else R.string.local_status_channel
             })
-            setTextColor(if(state==LocalNoticeStatus.READY) palette.secondary else ink)
+            setTextColor(availabilityColor(state==LocalNoticeStatus.READY))
             UiStyle.text(this,if(state==LocalNoticeStatus.READY) 400 else 500)
             if(page==2 && state!=LocalNoticeStatus.READY) {
                 minimumHeight=dp(48); gravity=Gravity.CENTER_VERTICAL
-                setCompoundDrawables(null,null,UiSymbols.drawable(this@MainActivity,"arrow",green,20),null)
+                setCompoundDrawables(null,null,UiSymbols.drawable(this@MainActivity,"arrow",palette.error,20),null)
                 setOnClickListener { show(5) }
                 contentDescription=text.toString()+" · "+tr(R.string.design_open_permission)
             } else { setCompoundDrawables(null,null,null,null); setOnClickListener(null); isClickable=false; minimumHeight=0; contentDescription=null }

@@ -4,6 +4,12 @@
     <color name="sb_light_text">#252925</color>
     <color name="sb_light_secondary">#626860</color>
     <color name="sb_light_accent">#28665C</color>
+    <color name="sb_light_success">#247044</color>
+    <color name="sb_light_error">#B33B35</color>
+    <color name="sb_dark_success">#8BD5A4</color>
+    <color name="sb_dark_error">#F3A39C</color>
+    <color name="sb_success">@color/sb_light_success</color>
+    <color name="sb_error">@color/sb_light_error</color>
     <color name="sb_light_on_accent">#FFFFFF</color>
     <color name="sb_light_control">#EDEEEA</color>
     <color name="sb_light_selected">#E1EBE4</color>

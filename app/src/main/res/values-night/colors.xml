@@ -1,4 +1,6 @@
 <resources>
+    <color name="sb_success">@color/sb_dark_success</color>
+    <color name="sb_error">@color/sb_dark_error</color>
     <color name="sb_background">@color/sb_dark_background</color>
     <color name="sb_surface">@color/sb_dark_surface</color>
     <color name="sb_text">@color/sb_dark_text</color>

@@ -36,6 +36,8 @@ class Palette(context: Context) {
     val secondary=context.getColor(R.color.sb_secondary)
     val accent=context.getColor(R.color.sb_accent)
     val onAccent=context.getColor(R.color.sb_on_accent)
+    val success=context.getColor(R.color.sb_success)
+    val error=context.getColor(R.color.sb_error)
     val control=context.getColor(R.color.sb_control)
     val selected=context.getColor(R.color.sb_selected)
     val outline=context.getColor(R.color.sb_outline)
