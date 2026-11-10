@@ -54,7 +54,7 @@ class MainActivity : Activity() {
     private var focusProgress: FocusProgressView?=null
     private var focusAlerts: LinearLayout?=null
     private var historyTab=0
-    private var clock: TextView?=null
+    private var clock: CountdownTextView?=null
     private var status: TextView?=null
     private var pending: TextView?=null
     private var nextCheck: TextView?=null
@@ -103,9 +103,10 @@ class MainActivity : Activity() {
         getSystemService(ActivityManager::class.java).appTasks.forEach { it.setExcludeFromRecents(settings.hideRecents) }
         if(page==4 || page==5) show(page)
         if(page==2) refreshLocalStatus()
+        if(page==0) update(animateClock=false)
         handler.removeCallbacks(tick); handler.post(tick)
     }
-    override fun onPause() { apiKeyField?.conceal(); resumed=false; handler.removeCallbacks(tick); UiMotion.settle(content); pageTransition.finish(); FocusWidgets.refresh(this); super.onPause() }
+    override fun onPause() { clock?.settle(); apiKeyField?.conceal(); resumed=false; handler.removeCallbacks(tick); UiMotion.settle(content); pageTransition.finish(); FocusWidgets.refresh(this); super.onPause() }
     override fun onDestroy() { handler.removeCallbacks(tick); pageTransition.clear(); clearPickers(); dismissDialogs(); captureForm=null; super.onDestroy() }
     private fun label(text: String,size: Float=15f,bold: Boolean=false,parent: LinearLayout=content): TextView = TextView(this).also {
         it.text=text; it.textSize=size; it.setTextColor(if(size<=13f) palette.secondary else ink); it.setPadding(0,dp(6),0,dp(6)); UiStyle.text(it,if(bold) 600 else 400); parent.addView(it)
@@ -148,7 +149,7 @@ class MainActivity : Activity() {
     private fun show(which: Int) {
         val previous=page
         if(::content.isInitialized) UiMotion.settle(content)
-        rememberScroll(); apiKeyField?.conceal(); apiKeyField=null; clearPickers(); uiGeneration++
+        rememberScroll(); clock?.settle(); apiKeyField?.conceal(); apiKeyField=null; clearPickers(); uiGeneration++
         if(page==2) savedForm=captureForm?.invoke() ?: savedForm
         captureForm=null; localStatusView=null
         pageActions.removeAllViews(); pageActions.visibility=View.GONE
@@ -206,11 +207,13 @@ class MainActivity : Activity() {
         val center=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(32),0,dp(32),0) }
         dial.addView(center,FrameLayout.LayoutParams(-1,-1))
         status=label("",13f,parent=center).apply { gravity=Gravity.CENTER; setTextColor(palette.secondary) }
-        clock=label("25:00",60f,true,center).apply {
+        clock=CountdownTextView(this).apply {
+            textSize=60f; setTextColor(ink); setPadding(0,dp(6),0,dp(6)); UiStyle.text(this,600,numbers=true)
             id=R.id.focus_clock; fontFeatureSettings="'tnum'"; gravity=Gravity.CENTER
             setAutoSizeTextTypeUniformWithConfiguration(24,60,2,android.util.TypedValue.COMPLEX_UNIT_SP)
             contentDescription=tr(R.string.timer_adjust_description); setOnClickListener { editDuration() }
         }
+        center.addView(clock,LinearLayout.LayoutParams(-1,-2))
         label(tr(R.string.design_tap_duration),12f,parent=center).apply { gravity=Gravity.CENTER; setTextColor(palette.secondary); minimumHeight=dp(48); setOnClickListener { editDuration() } }
         val primary=row()
         startButton=button(tr(R.string.timer_start),primary,primary=true) { TimerEngine.start(this); show(0) }
@@ -266,7 +269,7 @@ class MainActivity : Activity() {
         else { settings.minutes=minutes; FocusWidgets.refresh(this); toast(tr(R.string.duration_default_saved,minutes)) }
         show(0)
     }
-    private fun update() {
+    private fun update(animateClock: Boolean=resumed) {
         Store(this).use { db ->
             var t=db.timer()
             if(t.state=="RUNNING" && t.end<=System.currentTimeMillis()) { TimerEngine.finish(this,t.token); t=db.timer() }
@@ -281,7 +284,7 @@ class MainActivity : Activity() {
             startButton?.apply { visibility=if(t.state=="RUNNING") View.GONE else View.VISIBLE; text=if(t.state=="PAUSED") tr(R.string.timer_resume) else tr(R.string.timer_start) }
             pauseButton?.visibility=if(t.state=="RUNNING") View.VISIBLE else View.GONE
             restButton?.visibility=if(t.state=="IDLE") View.GONE else View.VISIBLE
-            val sec=(millis+999)/1000; clock?.apply { text="%02d:%02d".format(sec/60,sec%60); contentDescription=text.toString()+" · "+tr(R.string.timer_adjust_description) }
+            val sec=(millis+999)/1000; clock?.apply { setCountdown("%02d:%02d".format(sec/60,sec%60),animateClock && t.state=="RUNNING"); contentDescription=text.toString()+" · "+tr(R.string.timer_adjust_description) }
             status?.text=when(t.state) {
                 "RUNNING" -> tr(R.string.design_focusing)
                 "PAUSED" -> tr(R.string.design_paused)
